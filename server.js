@@ -3,10 +3,10 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// URL BASE: MODO SANDBOX (PRUEBAS)
-const BASE_URL = 'https://sandbox.enviafacil.shop:8443/api/v1';
+// URL BASE: PRODUCCIÓN ACTIVA (ENTORNO REAL)
+const BASE_URL = 'https://guias-api.enviafacil.shop/api/v1';
 
-// Múltiples usuarios autorizados para tu equipo
+// Múltiples usuarios autorizados para el equipo ECOMMERCE
 const USUARIOS_PERMITIDOS = {
   "deyanira": "@Alan2015*",
   "Jorge": "@Alan2015*",
@@ -15,7 +15,7 @@ const USUARIOS_PERMITIDOS = {
   "joseluis": "Pablito1122"
 };
 
-// Mantenemos el usuario maestro 'admin' a través de Render
+// Mantenemos el usuario maestro 'admin' a través de las variables de entorno
 const ADMIN_USER = process.env.APP_USER || 'admin';
 const ADMIN_PASS = process.env.APP_PASSWORD || 'Liten2026*';
 USUARIOS_PERMITIDOS[ADMIN_USER] = ADMIN_PASS;
@@ -48,7 +48,7 @@ app.get('/', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Liten Express - Portal de Envíos (Sandbox)</title>
+      <title>Liten Express - Portal de Envíos</title>
       <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: #f1f5f9; margin: 0; padding: 20px 14px; color: #1e293b; }
@@ -61,9 +61,7 @@ app.get('/', (req, res) => {
         .header { border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
         .header h1 { margin: 0; color: #1e40af; font-size: 24px; }
         .header p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
-        
-        /* Etiqueta amarilla para destacar que es de pruebas */
-        .badge-seguridad { background: #fef08a; color: #854d0e; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; }
+        .badge-seguridad { background: #dcfce7; color: #166534; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; }
         
         .section-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 18px 0 10px; border-left: 4px solid #2563eb; padding-left: 8px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
@@ -98,7 +96,7 @@ app.get('/', (req, res) => {
             <h1>Liten Express</h1>
             <p>Comercio Electrónico Liten - Generador de Guías Interno</p>
           </div>
-          <span class="badge-seguridad">🧪 Entorno Sandbox (Pruebas)</span>
+          <span class="badge-seguridad">🔒 Entorno Real Activo</span>
         </div>
 
         <!-- PASO 1: COTIZACIÓN -->
@@ -138,7 +136,7 @@ app.get('/', (req, res) => {
               <input type="number" id="alto" required min="1" value="10">
             </div>
           </div>
-          <button type="submit" id="btnCotizar" class="btn-primary">Cotizar Paqueterías (Modo Pruebas)</button>
+          <button type="submit" id="btnCotizar" class="btn-primary">Cotizar Paqueterías (Entorno Real)</button>
         </form>
 
         <div id="resultadosCotizacion" style="margin-top: 20px;"></div>
@@ -208,7 +206,7 @@ app.get('/', (req, res) => {
             </div>
 
             <button type="submit" id="btnGenerarGuia" class="btn-primary" style="background: #16a34a; margin-top: 10px;">
-              Confirmar y Generar Guía de Prueba
+              Confirmar y Generar Guía Oficial
             </button>
           </form>
 
@@ -262,8 +260,8 @@ app.get('/', (req, res) => {
             data.servicios.forEach(s => {
               
               // LÓGICA DE PRECIOS PERSONALIZADOS LITEN EXPRESS
-              const costoTraslado = parseFloat(s.total);            // Precio simulado por Sandbox
-              const costoServicio = costoTraslado * 2.25;           // Margen: Costo x 225%
+              const costoTraslado = parseFloat(s.total);               // Precio real cobrado por EnviaFácil
+              const costoServicio = costoTraslado * 1.25;              // Margen ECOMMERCE: Costo x 125%
               const costoTotalMuestra = costoTraslado + costoServicio; // Suma final mostrada al cliente/cajero
 
               html += \`
@@ -290,14 +288,14 @@ app.get('/', (req, res) => {
             resDiv.innerHTML = \`<div class="error">\${err.message}</div>\`;
           } finally {
             btn.disabled = false;
-            btn.innerText = 'Cotizar Paqueterías (Modo Pruebas)';
+            btn.innerText = 'Cotizar Paqueterías (Entorno Real)';
           }
         });
 
         window.seleccionarServicio = (idservicio, nombre, totalMostrado) => {
           servicioSeleccionado = idservicio;
           document.getElementById('tituloServicioSeleccionado').innerText =
-            \`2. Emisión de Guía - \${nombre} (Total simulado: $ \${parseFloat(totalMostrado).toFixed(2)} MXN)\`;
+            \`2. Emisión de Guía - \${nombre} (Total a cobrar: $ \${parseFloat(totalMostrado).toFixed(2)} MXN)\`;
           const seccion = document.getElementById('seccionEmision');
           seccion.style.display = 'block';
           seccion.scrollIntoView({ behavior: 'smooth' });
@@ -352,7 +350,7 @@ app.get('/', (req, res) => {
 
             resFinal.innerHTML = \`
               <div class="exito-box">
-                <h3 style="margin-top:0;">✅ ¡Guía de Prueba Generada!</h3>
+                <h3 style="margin-top:0;">✅ ¡Guía Generada Exitosamente!</h3>
                 <p><strong>Paquetería:</strong> \${data.paqueteria}</p>
                 <p><strong>Número de Rastreo:</strong> \${data.trackingCode}</p>
                 \${data.urlGuia ? \`<p><a href="\${data.urlGuia}" target="_blank" style="display:inline-block; padding:10px 18px; background:#16a34a; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold;">Descargar Guía en PDF</a></p>\` : '<p>Guía generada correctamente.</p>'}
@@ -362,7 +360,7 @@ app.get('/', (req, res) => {
             resFinal.innerHTML = \`<div class="error"><strong>Error al crear guía:</strong> \${err.message}</div>\`;
           } finally {
             btn.disabled = false;
-            btn.innerText = 'Confirmar y Generar Guía de Prueba';
+            btn.innerText = 'Confirmar y Generar Guía Oficial';
           }
         });
       </script>
@@ -411,4 +409,4 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo en MODO SANDBOX con desglose de precios.'));
+app.listen(PORT, () => console.log('Liten Express operativo en PRODUCCIÓN.'));
