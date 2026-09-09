@@ -259,10 +259,17 @@ app.get('/', (req, res) => {
             let html = '<h3 style="margin-bottom: 12px;">Selecciona la paquetería para crear la guía:</h3>';
             data.servicios.forEach(s => {
               
-              // LÓGICA DE PRECIOS PERSONALIZADOS LITEN EXPRESS
-              const costoTraslado = parseFloat(s.total);               // Precio real cobrado por EnviaFácil
-              const costoServicio = costoTraslado * 1.25;              // Margen ECOMMERCE: Costo x 125%
-              const costoTotalMuestra = costoTraslado + costoServicio; // Suma final mostrada al cliente/cajero
+              // LÓGICA DE PRECIOS DINÁMICOS LITEN EXPRESS
+              const costoTraslado = parseFloat(s.total); // Precio real cobrado por EnviaFácil
+              
+              // Aplicamos multiplicador condicional: 65% si es DHL, 125% si es cualquier otra
+              let multiplicadorServicio = 1.25; 
+              if (s.nombre.toUpperCase().includes('DHL')) {
+                multiplicadorServicio = 0.65;
+              }
+
+              const costoServicio = costoTraslado * multiplicadorServicio; // Margen dinámico
+              const costoTotalMuestra = costoTraslado + costoServicio;     // Suma final mostrada al cliente/cajero
 
               html += \`
                 <div class="card-servicio">
@@ -409,4 +416,4 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo en PRODUCCIÓN.'));
+app.listen(PORT, () => console.log('Liten Express operativo en PRODUCCIÓN con tarifas dinámicas.'));
