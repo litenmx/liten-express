@@ -11,7 +11,7 @@ const USUARIOS_PERMITIDOS = {
   "deyanira": "@Alan2015*",
   "Jorge": "@Alan2015*",
   "caja1": "@Liten123*",
-  "caja2": "@Liten123*"
+  "caja2": "@Liten123*",
   "joseluis": "Pablito1122"
 };
 
