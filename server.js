@@ -3,25 +3,35 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// URL BASE: cambia a 'https://guias-api.enviafacil.shop/api/v1' cuando pases a producción
+// URL BASE: MODO SANDBOX (PRUEBAS)
 const BASE_URL = 'https://sandbox.enviafacil.shop:8443/api/v1';
 
-// Credenciales de acceso interno para empleados
-const USUARIO_SISTEMA = process.env.APP_USER || 'admin';
-const PASSWORD_SISTEMA = process.env.APP_PASSWORD || 'Liten2026*';
+// Múltiples usuarios autorizados para tu equipo
+const USUARIOS_PERMITIDOS = {
+  "deyanira": "@Alan2015*",
+  "Jorge": "@Alan2015*",
+  "caja1": "@Liten123*",
+  "caja2": "@Liten123*"
+};
+
+// Mantenemos el usuario maestro 'admin' a través de Render
+const ADMIN_USER = process.env.APP_USER || 'admin';
+const ADMIN_PASS = process.env.APP_PASSWORD || 'Liten2026*';
+USUARIOS_PERMITIDOS[ADMIN_USER] = ADMIN_PASS;
 
 app.use(express.json());
 
-// Habilita la lectura de archivos en la raíz (para banner.png)
+// Permite servir archivos estáticos desde la raíz (logo.png)
 app.use(express.static(__dirname));
 
-// Candado de seguridad (Autenticación Básica)
+// Candado de seguridad (Autenticación Básica Multiusuario)
 app.use((req, res, next) => {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.split(' ')[1] || '';
   const [usuario, password] = Buffer.from(token, 'base64').toString().split(':');
 
-  if (usuario === USUARIO_SISTEMA && password === PASSWORD_SISTEMA) {
+  // Verifica si el usuario existe en la lista y la contraseña coincide
+  if (USUARIOS_PERMITIDOS[usuario] && USUARIOS_PERMITIDOS[usuario] === password) {
     return next();
   }
 
@@ -29,7 +39,7 @@ app.use((req, res, next) => {
   return res.status(401).send('Acceso no autorizado. Ingrese credenciales autorizadas de Liten Express.');
 });
 
-// Interfaz Liten Express
+// Portal web Liten Express
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -37,20 +47,23 @@ app.get('/', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Liten Express - Portal de Envíos</title>
+      <title>Liten Express - Portal de Envíos (Sandbox)</title>
       <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: #f1f5f9; margin: 0; padding: 20px 14px; color: #1e293b; }
         .container { max-width: 780px; margin: 0 auto; background: #ffffff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
         
-        /* Contenedor y ajuste del Banner */
-        .banner-container { text-align: center; margin-bottom: 16px; }
-        .banner-container img { max-height: 180px; max-width: 100%; height: auto; border-radius: 8px; object-fit: contain; }
+        /* Contenedor del Logo */
+        .logo-container { text-align: center; margin-bottom: 16px; }
+        .logo-container img { max-height: 180px; max-width: 100%; height: auto; border-radius: 8px; object-fit: contain; }
 
         .header { border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
         .header h1 { margin: 0; color: #1e40af; font-size: 24px; }
         .header p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
-        .badge-seguridad { background: #dcfce7; color: #166534; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; }
+        
+        /* Etiqueta amarilla para destacar que es de pruebas */
+        .badge-seguridad { background: #fef08a; color: #854d0e; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; }
+        
         .section-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 18px 0 10px; border-left: 4px solid #2563eb; padding-left: 8px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
         .full { grid-column: span 2; }
@@ -59,20 +72,24 @@ app.get('/', (req, res) => {
         input:focus { outline: none; border-color: #2563eb; }
         .btn-primary { width: 100%; background: #2563eb; color: #fff; border: none; padding: 12px; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; }
         .btn-primary:hover { background: #1d4ed8; }
-        .btn-success { background: #16a34a; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .btn-success { background: #16a34a; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
         .btn-success:hover { background: #15803d; }
-        .card-servicio { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
-        .precio { font-size: 18px; font-weight: 700; color: #15803d; margin-right: 12px; }
+        .card-servicio { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; background: #f8fafc; }
+        .precio { font-size: 18px; font-weight: 700; color: #15803d; }
         #seccionEmision { display: none; margin-top: 24px; padding-top: 18px; border-top: 2px dashed #cbd5e1; }
         .exito-box { background: #dcfce7; border: 1px solid #86efac; color: #14532d; padding: 18px; border-radius: 8px; margin-top: 18px; }
         .error { color: #b91c1c; background: #fee2e2; padding: 12px; border-radius: 6px; font-size: 13px; margin-top: 10px; }
+        
+        /* Estilos para el desglose de precios */
+        .desglose-precios { display: flex; flex-direction: column; align-items: flex-end; text-align: right; min-width: 180px; }
+        .rubro-precio { font-size: 13px; color: #475569; margin-bottom: 4px; }
       </style>
     </head>
     <body>
       <div class="container">
-        <!-- Banner Liten Express -->
-        <div class="banner-container">
-          <img src="/banner.png" alt="Liten Express" onerror="this.style.display='none'">
+        <!-- Logo Liten Express -->
+        <div class="logo-container">
+          <img src="/logo.png" alt="Liten Express" onerror="this.style.display='none'">
         </div>
 
         <div class="header">
@@ -80,7 +97,7 @@ app.get('/', (req, res) => {
             <h1>Liten Express</h1>
             <p>Comercio Electrónico Liten - Generador de Guías Interno</p>
           </div>
-          <span class="badge-seguridad">🔒 Sesión Segura</span>
+          <span class="badge-seguridad">🧪 Entorno Sandbox (Pruebas)</span>
         </div>
 
         <!-- PASO 1: COTIZACIÓN -->
@@ -120,7 +137,7 @@ app.get('/', (req, res) => {
               <input type="number" id="alto" required min="1" value="10">
             </div>
           </div>
-          <button type="submit" id="btnCotizar" class="btn-primary">Cotizar Paqueterías</button>
+          <button type="submit" id="btnCotizar" class="btn-primary">Cotizar Paqueterías (Modo Pruebas)</button>
         </form>
 
         <div id="resultadosCotizacion" style="margin-top: 20px;"></div>
@@ -190,7 +207,7 @@ app.get('/', (req, res) => {
             </div>
 
             <button type="submit" id="btnGenerarGuia" class="btn-primary" style="background: #16a34a; margin-top: 10px;">
-              Confirmar y Generar Guía Oficial
+              Confirmar y Generar Guía de Prueba
             </button>
           </form>
 
@@ -240,17 +257,27 @@ app.get('/', (req, res) => {
               return;
             }
 
-            let html = '<h3 style="margin-bottom: 10px;">Selecciona la paquetería para crear la guía:</h3>';
+            let html = '<h3 style="margin-bottom: 12px;">Selecciona la paquetería para crear la guía:</h3>';
             data.servicios.forEach(s => {
+              
+              // LÓGICA DE PRECIOS PERSONALIZADOS LITEN EXPRESS
+              const costoTraslado = parseFloat(s.total);            // Precio simulado por Sandbox
+              const costoServicio = costoTraslado * 2.25;           // Margen: Costo x 225%
+              const costoTotalMuestra = costoTraslado + costoServicio; // Suma final mostrada al cliente/cajero
+
               html += \`
                 <div class="card-servicio">
-                  <div>
-                    <strong>\${s.nombre}</strong><br>
-                    <small>Entrega estimada: \${s.dias} días hábiles</small>
+                  <div style="flex: 1;">
+                    <strong style="font-size: 16px;">\${s.nombre}</strong><br>
+                    <small style="color: #64748b;">Entrega estimada: \${s.dias} días hábiles</small>
                   </div>
-                  <div style="display: flex; align-items: center;">
-                    <div class="precio">$\${parseFloat(s.total).toFixed(2)} MXN</div>
-                    <button type="button" class="btn-success" onclick="seleccionarServicio(\${s.idservicio}, '\${s.nombre}', \${s.total})">
+                  
+                  <div class="desglose-precios">
+                    <div class="rubro-precio">Traslado: <strong>$\${costoTraslado.toFixed(2)}</strong></div>
+                    <div class="rubro-precio">Servicio: <strong>$\${costoServicio.toFixed(2)}</strong></div>
+                    <div class="precio" style="margin-top: 4px; margin-bottom: 10px;">Total: $\${costoTotalMuestra.toFixed(2)} MXN</div>
+                    
+                    <button type="button" class="btn-success" style="width: 100%; padding: 10px;" onclick="seleccionarServicio(\${s.idservicio}, '\${s.nombre}', \${costoTotalMuestra})">
                       Seleccionar
                     </button>
                   </div>
@@ -262,14 +289,14 @@ app.get('/', (req, res) => {
             resDiv.innerHTML = \`<div class="error">\${err.message}</div>\`;
           } finally {
             btn.disabled = false;
-            btn.innerText = 'Cotizar Paqueterías';
+            btn.innerText = 'Cotizar Paqueterías (Modo Pruebas)';
           }
         });
 
-        window.seleccionarServicio = (idservicio, nombre, total) => {
+        window.seleccionarServicio = (idservicio, nombre, totalMostrado) => {
           servicioSeleccionado = idservicio;
           document.getElementById('tituloServicioSeleccionado').innerText =
-            \`2. Emisión de Guía - \${nombre} ($ \${parseFloat(total).toFixed(2)} MXN)\`;
+            \`2. Emisión de Guía - \${nombre} (Total simulado: $ \${parseFloat(totalMostrado).toFixed(2)} MXN)\`;
           const seccion = document.getElementById('seccionEmision');
           seccion.style.display = 'block';
           seccion.scrollIntoView({ behavior: 'smooth' });
@@ -324,7 +351,7 @@ app.get('/', (req, res) => {
 
             resFinal.innerHTML = \`
               <div class="exito-box">
-                <h3 style="margin-top:0;">✅ ¡Guía Generada Exitosamente!</h3>
+                <h3 style="margin-top:0;">✅ ¡Guía de Prueba Generada!</h3>
                 <p><strong>Paquetería:</strong> \${data.paqueteria}</p>
                 <p><strong>Número de Rastreo:</strong> \${data.trackingCode}</p>
                 \${data.urlGuia ? \`<p><a href="\${data.urlGuia}" target="_blank" style="display:inline-block; padding:10px 18px; background:#16a34a; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold;">Descargar Guía en PDF</a></p>\` : '<p>Guía generada correctamente.</p>'}
@@ -334,7 +361,7 @@ app.get('/', (req, res) => {
             resFinal.innerHTML = \`<div class="error"><strong>Error al crear guía:</strong> \${err.message}</div>\`;
           } finally {
             btn.disabled = false;
-            btn.innerText = 'Confirmar y Generar Guía Oficial';
+            btn.innerText = 'Confirmar y Generar Guía de Prueba';
           }
         });
       </script>
@@ -343,7 +370,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Endpoint Cotizar
+// Endpoint seguro Cotizar
 app.post('/api/cotizar', async (req, res) => {
   const apiKey = process.env.ENVIAFACIL_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Falta ENVIAFACIL_API_KEY' });
@@ -361,7 +388,7 @@ app.post('/api/cotizar', async (req, res) => {
   }
 });
 
-// Endpoint Generar Guía
+// Endpoint seguro Generar Guía
 app.post('/api/guias', async (req, res) => {
   const apiKey = process.env.ENVIAFACIL_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Falta ENVIAFACIL_API_KEY' });
@@ -383,4 +410,4 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo con seguridad y banner'));
+app.listen(PORT, () => console.log('Liten Express operativo en MODO SANDBOX con desglose de precios.'));
