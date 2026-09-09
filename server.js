@@ -6,8 +6,27 @@ const PORT = process.env.PORT || 3000;
 // URL BASE: cambia a 'https://guias-api.enviafacil.shop/api/v1' cuando pases a producción
 const BASE_URL = 'https://sandbox.enviafacil.shop:8443/api/v1';
 
+// Credenciales de acceso interno para empleados
+const USUARIO_SISTEMA = process.env.APP_USER || 'admin';
+const PASSWORD_SISTEMA = process.env.APP_PASSWORD || 'Liten2026*';
+
 app.use(express.json());
 
+// Candado de seguridad (Autenticación Básica)
+app.use((req, res, next) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.split(' ')[1] || '';
+  const [usuario, password] = Buffer.from(token, 'base64').toString().split(':');
+
+  if (usuario === USUARIO_SISTEMA && password === PASSWORD_SISTEMA) {
+    return next();
+  }
+
+  res.set('WWW-Authenticate', 'Basic realm="Acceso Privado Liten Express"');
+  return res.status(401).send('Acceso no autorizado. Ingrese credenciales autorizadas de Liten Express.');
+});
+
+// Interfaz Liten Express
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -20,9 +39,10 @@ app.get('/', (req, res) => {
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: #f1f5f9; margin: 0; padding: 24px; color: #1e293b; }
         .container { max-width: 800px; margin: 0 auto; background: #ffffff; padding: 28px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
-        .header { border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; }
+        .header { border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
         .header h1 { margin: 0; color: #1e40af; font-size: 24px; }
         .header p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
+        .badge-seguridad { background: #dcfce7; color: #166534; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; }
         .section-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 18px 0 10px; border-left: 4px solid #2563eb; padding-left: 8px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
         .full { grid-column: span 2; }
@@ -43,8 +63,11 @@ app.get('/', (req, res) => {
     <body>
       <div class="container">
         <div class="header">
-          <h1>Liten Express</h1>
-          <p>Comercio Electrónico Liten - Generador de Guías Interno</p>
+          <div>
+            <h1>Liten Express</h1>
+            <p>Comercio Electrónico Liten - Generador de Guías Interno</p>
+          </div>
+          <span class="badge-seguridad">🔒 Sesión Segura</span>
         </div>
 
         <!-- PASO 1: COTIZACIÓN -->
@@ -149,7 +172,7 @@ app.get('/', (req, res) => {
               </div>
               <div class="full">
                 <label>Contenido del paquete</label>
-                <input type="text" id="paqContenido" required placeholder="Ej. Ropa, Calzado, Artículos de oficina">
+                <input type="text" id="paqContenido" required placeholder="Ej. Ropa, Calzado, Artículos varios">
               </div>
             </div>
 
@@ -166,13 +189,11 @@ app.get('/', (req, res) => {
         let cotizacionActual = null;
         let servicioSeleccionado = null;
 
-        // Manejar Cotización
         document.getElementById('cotizadorForm').addEventListener('submit', async (e) => {
           e.preventDefault();
           const resDiv = document.getElementById('resultadosCotizacion');
           const btn = document.getElementById('btnCotizar');
-          const emisionDiv = document.getElementById('seccionEmision');
-          emisionDiv.style.display = 'none';
+          document.getElementById('seccionEmision').style.display = 'none';
           btn.disabled = true;
           btn.innerText = 'Consultando tarifas...';
           resDiv.innerHTML = '';
@@ -232,7 +253,6 @@ app.get('/', (req, res) => {
           }
         });
 
-        // Seleccionar Paquetería
         window.seleccionarServicio = (idservicio, nombre, total) => {
           servicioSeleccionado = idservicio;
           document.getElementById('tituloServicioSeleccionado').innerText =
@@ -242,7 +262,6 @@ app.get('/', (req, res) => {
           seccion.scrollIntoView({ behavior: 'smooth' });
         };
 
-        // Manejar Generación de Guía
         document.getElementById('emisionForm').addEventListener('submit', async (e) => {
           e.preventDefault();
           const btn = document.getElementById('btnGenerarGuia');
@@ -295,7 +314,7 @@ app.get('/', (req, res) => {
                 <h3 style="margin-top:0;">✅ ¡Guía Generada Exitosamente!</h3>
                 <p><strong>Paquetería:</strong> \${data.paqueteria}</p>
                 <p><strong>Número de Rastreo:</strong> \${data.trackingCode}</p>
-                \${data.urlGuia ? \`<p><a href="\${data.urlGuia}" target="_blank" style="display:inline-block; padding:10px 18px; background:#16a34a; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold;">Descargar Guía en PDF</a></p>\` : '<p>La guía se generó correctamente pero el archivo PDF está en procesamiento.</p>'}
+                \${data.urlGuia ? \`<p><a href="\${data.urlGuia}" target="_blank" style="display:inline-block; padding:10px 18px; background:#16a34a; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold;">Descargar Guía en PDF</a></p>\` : '<p>Guía generada correctamente.</p>'}
               </div>
             \`;
           } catch (err) {
@@ -311,7 +330,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Endpoint seguro para Cotizar
+// Endpoint Cotizar
 app.post('/api/cotizar', async (req, res) => {
   const apiKey = process.env.ENVIAFACIL_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Falta ENVIAFACIL_API_KEY' });
@@ -329,7 +348,7 @@ app.post('/api/cotizar', async (req, res) => {
   }
 });
 
-// Endpoint seguro para Generar la Guía
+// Endpoint Generar Guía
 app.post('/api/guias', async (req, res) => {
   const apiKey = process.env.ENVIAFACIL_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Falta ENVIAFACIL_API_KEY' });
@@ -351,4 +370,4 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo'));
+app.listen(PORT, () => console.log('Liten Express operativo con seguridad'));
