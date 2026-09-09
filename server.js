@@ -12,6 +12,7 @@ const USUARIOS_PERMITIDOS = {
   "Jorge": "@Alan2015*",
   "caja1": "@Liten123*",
   "caja2": "@Liten123*"
+  "joseluis": "Pablito1122"
 };
 
 // Mantenemos el usuario maestro 'admin' a través de Render
