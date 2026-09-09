@@ -262,7 +262,7 @@ app.get('/', (req, res) => {
               // LÓGICA DE PRECIOS DINÁMICOS LITEN EXPRESS
               const costoTraslado = parseFloat(s.total); 
               
-              // Expresión regular: busca "DHL" sin importar mayúsculas/minúsculas
+              // Expresión regular: busca "DHL" sin importar mayúsculas/minúsculas ni palabras extra
               let multiplicadorServicio = 1.25; 
               if (/DHL/i.test(s.nombre)) {
                 multiplicadorServicio = 0.65;
@@ -308,24 +308,8 @@ app.get('/', (req, res) => {
           seccion.scrollIntoView({ behavior: 'smooth' });
         };
 
-        // EVENTO DEL BOTÓN GENERAR GUÍA
         document.getElementById('emisionForm').addEventListener('submit', async (e) => {
           e.preventDefault();
-
-          // >>> ALERTA DE CONFIRMACIÓN DE SEGURIDAD <<<
-          const mensajeAdvertencia = 
-            "⚠️ ATENCIÓN: ANTES DE GENERAR LA GUÍA\n\n" +
-            "1. Verifica que el C.P. y la dirección del cliente sean correctos.\n" +
-            "2. Asegúrate de haber seleccionado el tipo de servicio correcto.\n" +
-            "3. Confirma que YA HAS COBRADO el importe total de la guía.\n\n" +
-            "¿Estás seguro de que deseas emitir la guía oficial ahora? (Se descontará el saldo)";
-
-          const confirmacion = confirm(mensajeAdvertencia);
-          if (!confirmacion) {
-            return; // Si el empleado le da a "Cancelar", el proceso se detiene aquí.
-          }
-          // ===========================================
-
           const btn = document.getElementById('btnGenerarGuia');
           const resFinal = document.getElementById('resultadoFinal');
           btn.disabled = true;
@@ -432,4 +416,4 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo en PRODUCCIÓN con alerta de seguridad.'));
+app.listen(PORT, () => console.log('Liten Express operativo en PRODUCCIÓN con reglas por paquetería.'));
