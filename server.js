@@ -12,6 +12,9 @@ const PASSWORD_SISTEMA = process.env.APP_PASSWORD || 'Liten2026*';
 
 app.use(express.json());
 
+// Habilita la lectura de archivos en la raíz (para banner.png)
+app.use(express.static(__dirname));
+
 // Candado de seguridad (Autenticación Básica)
 app.use((req, res, next) => {
   const authHeader = req.headers.authorization || '';
@@ -37,8 +40,13 @@ app.get('/', (req, res) => {
       <title>Liten Express - Portal de Envíos</title>
       <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background: #f1f5f9; margin: 0; padding: 24px; color: #1e293b; }
-        .container { max-width: 800px; margin: 0 auto; background: #ffffff; padding: 28px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        body { background: #f1f5f9; margin: 0; padding: 20px 14px; color: #1e293b; }
+        .container { max-width: 780px; margin: 0 auto; background: #ffffff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        
+        /* Contenedor y ajuste del Banner */
+        .banner-container { text-align: center; margin-bottom: 16px; }
+        .banner-container img { max-height: 180px; max-width: 100%; height: auto; border-radius: 8px; object-fit: contain; }
+
         .header { border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
         .header h1 { margin: 0; color: #1e40af; font-size: 24px; }
         .header p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
@@ -62,6 +70,11 @@ app.get('/', (req, res) => {
     </head>
     <body>
       <div class="container">
+        <!-- Banner Liten Express -->
+        <div class="banner-container">
+          <img src="/banner.png" alt="Liten Express" onerror="this.style.display='none'">
+        </div>
+
         <div class="header">
           <div>
             <h1>Liten Express</h1>
@@ -370,4 +383,4 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo con seguridad'));
+app.listen(PORT, () => console.log('Liten Express operativo con seguridad y banner'));
