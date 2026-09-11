@@ -6,8 +6,12 @@ const PORT = process.env.PORT || 3000;
 // URL BASE: PRODUCCIÓN ACTIVA (ENTORNO REAL)
 const BASE_URL = 'https://guias-api.enviafacil.shop/api/v1';
 
-// Múltiples usuarios autorizados para el equipo ECOMMERCE
-const USUARIOS_PERMITIDOS = {
+// ---------------------------------------------------------
+// BASE DE DATOS DE USUARIOS Y ROLES LITEN EXPRESS
+// ---------------------------------------------------------
+
+// 1. Usuarios CAJEROS (Cotizan y SÍ pueden generar guías)
+const USUARIOS_CAJERO = {
   "deyanira": "@Alan2015*",
   "Jorge": "@Alan2015*",
   "caja1": "@Liten123*",
@@ -15,23 +19,47 @@ const USUARIOS_PERMITIDOS = {
   "joseluis": "Pablito1122"
 };
 
+// 2. Usuarios SOLO LECTURA (Cotizan con margen, NO pueden generar guías)
+const USUARIOS_SOLO_LECTURA = {
+  "moball": "llegodios123",
+  "ventas": "Liten2026"
+};
+
 // Mantenemos el usuario maestro 'admin' a través de las variables de entorno
 const ADMIN_USER = process.env.APP_USER || 'admin';
 const ADMIN_PASS = process.env.APP_PASSWORD || 'Liten2026*';
-USUARIOS_PERMITIDOS[ADMIN_USER] = ADMIN_PASS;
+USUARIOS_CAJERO[ADMIN_USER] = ADMIN_PASS;
 
 app.use(express.json());
 
+// =================================================================
+// SOLUCIÓN AL BUG DEL NAVEGADOR (Evita que la contraseña parpadee)
+// =================================================================
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // ==========================================
-// 1. CANDADO DE SEGURIDAD PRIMERO
+// 1. CANDADO DE SEGURIDAD Y ROLES
 // ==========================================
 app.use((req, res, next) => {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.split(' ')[1] || '';
   const [usuario, password] = Buffer.from(token, 'base64').toString().split(':');
 
-  if (USUARIOS_PERMITIDOS[usuario] && USUARIOS_PERMITIDOS[usuario] === password) {
-    req.usuarioLiten = usuario; // Guardamos el nombre del cajero para el recibo
+  let rolAsignado = null;
+
+  // Verificamos si es un Cajero
+  if (USUARIOS_CAJERO[usuario] && USUARIOS_CAJERO[usuario] === password) {
+    rolAsignado = 'cajero';
+  } 
+  // Verificamos si es un usuario de Solo Lectura
+  else if (USUARIOS_SOLO_LECTURA[usuario] && USUARIOS_SOLO_LECTURA[usuario] === password) {
+    rolAsignado = 'solo_lectura';
+  }
+
+  // Si tiene acceso, lo dejamos pasar y guardamos quién es
+  if (rolAsignado) {
+    req.usuarioLiten = usuario; 
+    req.rolLiten = rolAsignado;
     return next();
   }
 
@@ -40,13 +68,16 @@ app.use((req, res, next) => {
 });
 
 // ==========================================
-// 2. DESPUÉS DEL CANDADO, ARCHIVOS ESTÁTICOS
+// 2. ARCHIVOS ESTÁTICOS
 // ==========================================
 app.use(express.static(__dirname));
 
-// Portal web Liten Express
+// ==========================================
+// 3. PORTAL WEB LITEN EXPRESS
+// ==========================================
 app.get('/', (req, res) => {
   const usuarioActual = req.usuarioLiten || 'Cajero';
+  const rolActual = req.rolLiten || 'solo_lectura';
 
   res.send(`
     <!DOCTYPE html>
@@ -67,6 +98,7 @@ app.get('/', (req, res) => {
         .header h1 { margin: 0; color: #1e40af; font-size: 24px; }
         .header p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
         .badge-seguridad { background: #dcfce7; color: #166534; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; }
+        .badge-solo-lectura { background: #fee2e2; color: #991b1b; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; display: ${rolActual === 'solo_lectura' ? 'inline-block' : 'none'}; margin-top: 5px; }
         
         .section-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 18px 0 10px; border-left: 4px solid #2563eb; padding-left: 8px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
@@ -130,7 +162,8 @@ app.get('/', (req, res) => {
         <div class="header">
           <div>
             <h1>Liten Express</h1>
-            <p>Comercio Electrónico Liten - Generador de Guías Interno</p>
+            <p>Hola, <strong>${usuarioActual}</strong> - Generador de Guías</p>
+            <span class="badge-solo-lectura">⚠️ Modo Consulta (Generar guías desactivado)</span>
           </div>
           <span class="badge-seguridad">🔒 Entorno Real Activo</span>
         </div>
@@ -192,7 +225,7 @@ app.get('/', (req, res) => {
                 <input type="text" id="remEmpresa" value="Comercio Electrónico Liten">
               </div>
               
-              <!-- NUEVOS CAMPOS DE IDENTIFICACIÓN -->
+              <!-- CAMPOS DE IDENTIFICACIÓN -->
               <div>
                 <label>Tipo de Identificación</label>
                 <select id="remIdTipo" required>
@@ -208,7 +241,6 @@ app.get('/', (req, res) => {
                 <label>Núm. de Identificación</label>
                 <input type="text" id="remIdNum" required placeholder="Clave de Elector, Folio, etc.">
               </div>
-              <!-- FIN DE NUEVOS CAMPOS -->
 
               <div>
                 <label>Calle y Número</label>
@@ -335,6 +367,7 @@ app.get('/', (req, res) => {
       </div>
 
       <script>
+        const ROL_USUARIO_ACTUAL = '${rolActual}'; // Inyectado desde el servidor
         let cotizacionActual = null;
         let servicioSeleccionado = null;
         let nombrePaqueteriaSeleccionada = '';
@@ -396,7 +429,7 @@ app.get('/', (req, res) => {
             let html = '<h3 style="margin-bottom: 12px;">Selecciona la paquetería para crear la guía:</h3>';
             data.servicios.forEach(s => {
               
-              // LÓGICA DE PRECIOS DINÁMICOS LITEN EXPRESS
+              // LÓGICA DE PRECIOS DINÁMICOS
               const costoTraslado = parseFloat(s.total); 
               let multiplicadorServicio = 1.25; 
               if (/DHL/i.test(s.nombre)) {
@@ -406,6 +439,15 @@ app.get('/', (req, res) => {
               const costoServicio = costoTraslado * multiplicadorServicio; 
               const costoTotalMuestra = costoTraslado + costoServicio;     
 
+              // LÓGICA DE ROLES VISUAL: Ocultar botón si es "solo_lectura"
+              let botonHTML = '';
+              if (ROL_USUARIO_ACTUAL === 'cajero') {
+                  botonHTML = \`<button type="button" class="btn-success" style="width: 100%; padding: 10px;" onclick="seleccionarServicio(\${s.idservicio}, '\${s.nombre}', \${costoTotalMuestra}, \${s.kg})">Seleccionar</button>\`;
+              } else {
+                  botonHTML = \`<div style="color: #991b1b; font-size: 11px; text-align: center; margin-top: 5px; font-weight: bold;">[Botón de Emisión Desactivado]</div>\`;
+              }
+
+              // CAMBIO DE TEXTO: TRASLADO -> COMBUSTIBLE
               html += \`
                 <div class="card-servicio">
                   <div style="flex: 1;">
@@ -415,13 +457,10 @@ app.get('/', (req, res) => {
                   </div>
                   
                   <div class="desglose-precios">
-                    <div class="rubro-precio">Traslado: <strong>$\${costoTraslado.toFixed(2)}</strong></div>
+                    <div class="rubro-precio">Combustible: <strong>$\${costoTraslado.toFixed(2)}</strong></div>
                     <div class="rubro-precio">Servicio: <strong>$\${costoServicio.toFixed(2)}</strong></div>
                     <div class="precio" style="margin-top: 4px; margin-bottom: 10px;">Total: $\${costoTotalMuestra.toFixed(2)} MXN</div>
-                    
-                    <button type="button" class="btn-success" style="width: 100%; padding: 10px;" onclick="seleccionarServicio(\${s.idservicio}, '\${s.nombre}', \${costoTotalMuestra}, \${s.kg})">
-                      Seleccionar
-                    </button>
+                    \${botonHTML}
                   </div>
                 </div>
               \`;
@@ -452,13 +491,7 @@ app.get('/', (req, res) => {
           e.preventDefault();
 
           // >>> ALERTA DE CONFIRMACIÓN <<<
-          const mensajeAdvertencia = 
-            "⚠️ ATENCIÓN: ANTES DE GENERAR LA GUÍA\\n\\n" +
-            "1. Verifica que el C.P. y la dirección sean correctos.\\n" +
-            "2. Confirma que YA HAS COBRADO el importe total.\\n\\n" +
-            "¿Estás seguro de emitir la guía oficial? (Se descontará saldo)";
-
-          if (!confirm(mensajeAdvertencia)) return;
+          if (!confirm("⚠️ ATENCIÓN: ANTES DE GENERAR LA GUÍA\\n\\n1. Verifica que el C.P. y la dirección sean correctos.\\n2. Confirma que YA HAS COBRADO el importe total.\\n\\n¿Estás seguro de emitir la guía oficial? (Se descontará saldo)")) return;
 
           const btn = document.getElementById('btnGenerarGuia');
           const resFinal = document.getElementById('resultadoFinal');
@@ -524,7 +557,7 @@ app.get('/', (req, res) => {
             document.getElementById('rFecha').innerText = new Date().toLocaleString('es-MX');
             document.getElementById('rRemNombre').innerText = nombreRemitente;
             
-            // Juntar el Tipo de ID y el Número de ID en una sola línea para el recibo
+            // Tipo de ID y Número para el recibo
             const tipoId = document.getElementById('remIdTipo').value;
             const numId = document.getElementById('remIdNum').value;
             document.getElementById('rRemIdentificacion').innerText = \`\${tipoId} - \${numId}\`;
@@ -546,7 +579,7 @@ app.get('/', (req, res) => {
             document.getElementById('rPaqWeb').innerText = datosContacto.web;
             document.getElementById('rFirmaNombre').innerText = nombreRemitente;
             
-            // Mostrar botón
+            // Mostrar botón de Imprimir
             document.getElementById('btnImprimirRecibo').style.display = 'block';
 
           } catch (err) {
@@ -562,7 +595,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Endpoint seguro Cotizar
+// Endpoint seguro Cotizar (Disponible para ambos roles)
 app.post('/api/cotizar', async (req, res) => {
   const apiKey = process.env.ENVIAFACIL_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Falta ENVIAFACIL_API_KEY' });
@@ -580,8 +613,14 @@ app.post('/api/cotizar', async (req, res) => {
   }
 });
 
-// Endpoint seguro Generar Guía
+// Endpoint seguro Generar Guía (DOBLE CANDADO: Solo Cajeros)
 app.post('/api/guias', async (req, res) => {
+  
+  // PROTECCIÓN DEL SERVIDOR (Bloquea usuarios 'solo_lectura' como 'moball' por si intentan hackear)
+  if (req.rolLiten !== 'cajero') {
+    return res.status(403).json({ error: 'Operación denegada. Este usuario solo tiene permisos para cotizar, no para gastar saldo.' });
+  }
+
   const apiKey = process.env.ENVIAFACIL_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Falta ENVIAFACIL_API_KEY' });
 
@@ -602,4 +641,4 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo en PRODUCCIÓN.'));
+app.listen(PORT, () => console.log('Liten Express operativo con Todas las Mejoras Integradas.'));
