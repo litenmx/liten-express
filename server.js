@@ -9,8 +9,6 @@ const BASE_URL = 'https://guias-api.enviafacil.shop/api/v1';
 // ---------------------------------------------------------
 // BASE DE DATOS DE USUARIOS Y ROLES LITEN EXPRESS
 // ---------------------------------------------------------
-
-// 1. Usuarios CAJEROS (Cotizan y SÍ pueden generar guías)
 const USUARIOS_CAJERO = {
   "deyanira": "@Alan2015*",
   "Jorge": "@Alan2015*",
@@ -19,22 +17,18 @@ const USUARIOS_CAJERO = {
   "joseluis": "Pablito1122"
 };
 
-// 2. Usuarios SOLO LECTURA (Cotizan con margen, NO pueden generar guías)
 const USUARIOS_SOLO_LECTURA = {
   "moball": "llegodios123",
   "ventas": "Liten2026"
 };
 
-// Mantenemos el usuario maestro 'admin' a través de las variables de entorno
 const ADMIN_USER = process.env.APP_USER || 'admin';
 const ADMIN_PASS = process.env.APP_PASSWORD || 'Liten2026*';
 USUARIOS_CAJERO[ADMIN_USER] = ADMIN_PASS;
 
 app.use(express.json());
 
-// =================================================================
-// SOLUCIÓN AL BUG DEL NAVEGADOR (Evita que la contraseña parpadee)
-// =================================================================
+// Evita que la contraseña parpadee por culpa del favicon
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // ==========================================
@@ -47,16 +41,12 @@ app.use((req, res, next) => {
 
   let rolAsignado = null;
 
-  // Verificamos si es un Cajero
   if (USUARIOS_CAJERO[usuario] && USUARIOS_CAJERO[usuario] === password) {
     rolAsignado = 'cajero';
-  } 
-  // Verificamos si es un usuario de Solo Lectura
-  else if (USUARIOS_SOLO_LECTURA[usuario] && USUARIOS_SOLO_LECTURA[usuario] === password) {
+  } else if (USUARIOS_SOLO_LECTURA[usuario] && USUARIOS_SOLO_LECTURA[usuario] === password) {
     rolAsignado = 'solo_lectura';
   }
 
-  // Si tiene acceso, lo dejamos pasar y guardamos quién es
   if (rolAsignado) {
     req.usuarioLiten = usuario; 
     req.rolLiten = rolAsignado;
@@ -67,9 +57,6 @@ app.use((req, res, next) => {
   return res.status(401).send('Acceso no autorizado. Ingrese credenciales autorizadas de Liten Express.');
 });
 
-// ==========================================
-// 2. ARCHIVOS ESTÁTICOS
-// ==========================================
 app.use(express.static(__dirname));
 
 // ==========================================
@@ -122,13 +109,15 @@ app.get('/', (req, res) => {
         .desglose-precios { display: flex; flex-direction: column; align-items: flex-end; text-align: right; min-width: 180px; }
         .rubro-precio { font-size: 13px; color: #475569; margin-bottom: 4px; }
         .peso-facturado { color: #1e40af; font-weight: 600; font-size: 12px; margin-top: 4px; display: inline-block; background: #dbeafe; padding: 2px 6px; border-radius: 4px; }
+        .nota-operativa { color: #b91c1c; font-size: 11px; font-weight: 600; margin-top: 6px; display: block; font-style: italic; }
+
+        /* Estilos para la nueva ALERTA DE CARGOS EXTRAS */
+        .alerta-cargos { background: #fef08a; color: #854d0e; padding: 8px 10px; border-radius: 6px; font-size: 11px; margin-top: 8px; border: 1px solid #fde047; }
+        .alerta-cargos ul { margin: 4px 0 0 0; padding-left: 20px; }
 
         /* Estilos del Recibo (Ocultos en pantalla normal) */
         #reciboLiten { display: none; }
 
-        /* ========================================== */
-        /* FORMATO DE IMPRESIÓN (RECIBO LEGAL)        */
-        /* ========================================== */
         @media print {
           body * { visibility: hidden; } 
           #reciboLiten, #reciboLiten * { visibility: visible; } 
@@ -138,7 +127,7 @@ app.get('/', (req, res) => {
             left: 0; 
             top: 0; 
             width: 100%; 
-            max-width: 320px; /* Ancho ideal para ticket/miniprinter */
+            max-width: 320px; 
             padding: 10px; 
             font-family: 'Courier New', Courier, monospace; 
             font-size: 12px; 
@@ -298,8 +287,6 @@ app.get('/', (req, res) => {
           </form>
 
           <div id="resultadoFinal"></div>
-          
-          <!-- Botón de Imprimir (Aparece tras generar la guía) -->
           <button id="btnImprimirRecibo" class="btn-print" onclick="window.print()">🖨️ Imprimir Comprobante de Envío</button>
         </div>
       </div>
@@ -342,7 +329,6 @@ app.get('/', (req, res) => {
               <strong>TOTAL: $<span id="rTotal"></span> MXN</strong>
           </div>
           
-          <!-- SECCIÓN LEGAL Y ATENCIÓN A CLIENTES -->
           <div class="separador" style="margin-top: 15px;"></div>
           <div class="texto-legal">
               <strong>ATENCIÓN AL CLIENTE:</strong><br>
@@ -352,14 +338,12 @@ app.get('/', (req, res) => {
               <em>Nota: Esta sucursal opera únicamente como centro de recepción y emisión de envíos. La oficina solo recibe y genera sus envíos, mas no cuenta con área de atención a clientes para rastreos, reclamos o demoras.</em>
           </div>
 
-          <!-- FIRMA -->
           <div class="firma-box">
               _________________________________<br>
               Firma de aceptación<br>
               <span id="rFirmaNombre"></span>
           </div>
 
-          <!-- TÉRMINOS Y CONDICIONES -->
           <div class="texto-legal" style="font-size: 9px;">
               <strong>COMERCIO ELECTRÓNICO LITEN</strong><br>
               Al firmar este recibo, el remitente acepta los Términos y Condiciones del servicio, declarando que el contenido del paquete es lícito, no incluye artículos prohibidos y no infringe regulaciones nacionales. Liten Express actúa como intermediario tecnológico y no se hace responsable por daños, extravíos, robos o demoras atribuibles directamente a la empresa de paquetería contratada.
@@ -387,6 +371,22 @@ app.get('/', (req, res) => {
             return { tel: 'Consulte portal web oficial', web: 'Buscar nombre en Google' };
         }
 
+        // DICCIONARIO INTELIGENTE DE ADVERTENCIAS OPERATIVAS
+        function obtenerNotaOperativa(nombrePaq) {
+            const n = nombrePaq.toUpperCase();
+            if (n.includes('MANUAL')) {
+                return "Esta guía es exclusivamente para 1kg de peso, no se pueden pagar sobrepesos en mostrador ni con monedero";
+            }
+            if (n.includes('PAQUETEXPRESS DIA SIGUIENTE (SE ADJUNTA UNA GUIA PDF EN BLANCO') ||
+                n === 'ESTAFETA TERRESTRE SIN RECOLECCION1' ||
+                n === 'ESTAFETA DIA SIGUIENTE SIN RECOLECCION' ||
+                n === 'ESTAFETA TERRESTRE SIN RECOLECCION' ||
+                n === 'PAQUETEXPRESS TERRESTRE P') {
+                return "*cargos extras se pagan en mostrador*";
+            }
+            return "cargos extras se paga con monedero"; // Por defecto
+        }
+
         document.getElementById('cotizadorForm').addEventListener('submit', async (e) => {
           e.preventDefault();
           const resDiv = document.getElementById('resultadosCotizacion');
@@ -406,8 +406,8 @@ app.get('/', (req, res) => {
             largo: parseInt(document.getElementById('largo').value, 10),
             ancho: parseInt(document.getElementById('ancho').value, 10),
             alto: parseInt(document.getElementById('alto').value, 10),
-            envioAsegurado: false,
-            conRecoleccion: false
+            envioAsegurado: false, // NOTA: Aquí se puede habilitar el seguro a futuro
+            conRecoleccion: false  // NOTA: Aquí se puede habilitar recolecciones
           };
 
           try {
@@ -438,6 +438,18 @@ app.get('/', (req, res) => {
 
               const costoServicio = costoTraslado * multiplicadorServicio; 
               const costoTotalMuestra = costoTraslado + costoServicio;     
+              
+              const notaAdvertencia = obtenerNotaOperativa(s.nombre);
+
+              // >>> NUEVO: DETECTOR VISUAL DE CARGOS EXTRAS <<<
+              let htmlCargosExtras = '';
+              if (s.cargosAplicados && s.cargosAplicados.length > 0) {
+                  htmlCargosExtras = \`<div class="alerta-cargos"><strong>⚠️ Cargos extras incluidos en tarifa:</strong><ul>\`;
+                  s.cargosAplicados.forEach(cargo => {
+                      htmlCargosExtras += \`<li>\${cargo.concepto}: $\${cargo.monto.toFixed(2)}</li>\`;
+                  });
+                  htmlCargosExtras += \`</ul></div>\`;
+              }
 
               // LÓGICA DE ROLES VISUAL: Ocultar botón si es "solo_lectura"
               let botonHTML = '';
@@ -447,13 +459,14 @@ app.get('/', (req, res) => {
                   botonHTML = \`<div style="color: #991b1b; font-size: 11px; text-align: center; margin-top: 5px; font-weight: bold;">[Botón de Emisión Desactivado]</div>\`;
               }
 
-              // CAMBIO DE TEXTO: TRASLADO -> COMBUSTIBLE
               html += \`
                 <div class="card-servicio">
                   <div style="flex: 1;">
                     <strong style="font-size: 16px;">\${s.nombre}</strong><br>
                     <small style="color: #64748b;">Entrega estimada: \${s.dias} días hábiles</small><br>
-                    <span class="peso-facturado">Peso a cobrar: \${s.kg} kg</span>
+                    <span class="peso-facturado">Peso a cobrar: \${s.kg} kg</span><br>
+                    <span class="nota-operativa">\${notaAdvertencia}</span>
+                    \${htmlCargosExtras}
                   </div>
                   
                   <div class="desglose-precios">
@@ -490,7 +503,6 @@ app.get('/', (req, res) => {
         document.getElementById('emisionForm').addEventListener('submit', async (e) => {
           e.preventDefault();
 
-          // >>> ALERTA DE CONFIRMACIÓN <<<
           if (!confirm("⚠️ ATENCIÓN: ANTES DE GENERAR LA GUÍA\\n\\n1. Verifica que el C.P. y la dirección sean correctos.\\n2. Confirma que YA HAS COBRADO el importe total.\\n\\n¿Estás seguro de emitir la guía oficial? (Se descontará saldo)")) return;
 
           const btn = document.getElementById('btnGenerarGuia');
@@ -546,7 +558,7 @@ app.get('/', (req, res) => {
                 <h3 style="margin-top:0;">✅ ¡Guía Generada Exitosamente!</h3>
                 <p><strong>Paquetería:</strong> \${data.paqueteria}</p>
                 <p><strong>Número de Rastreo:</strong> \${data.trackingCode}</p>
-                \${data.urlGuia ? \`<p><a href="\${data.urlGuia}" target="_blank" style="display:inline-block; padding:10px 18px; background:#16a34a; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold;">Descargar Guía en PDF</a></p>\` : '<p>Guía generada correctamente.</p>'}
+                \${data.urlGuia ? \`<p><a href="\${data.urlGuia}" target="_blank" style="display:inline-block; padding:10px 18px; background:#16a34a; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold;">Descargar Guía en PDF</a></p>\` : '<p>Guía generada correctamente. URL en espera.</p>'}
               </div>
             \`;
 
@@ -557,7 +569,6 @@ app.get('/', (req, res) => {
             document.getElementById('rFecha').innerText = new Date().toLocaleString('es-MX');
             document.getElementById('rRemNombre').innerText = nombreRemitente;
             
-            // Tipo de ID y Número para el recibo
             const tipoId = document.getElementById('remIdTipo').value;
             const numId = document.getElementById('remIdNum').value;
             document.getElementById('rRemIdentificacion').innerText = \`\${tipoId} - \${numId}\`;
@@ -574,12 +585,10 @@ app.get('/', (req, res) => {
             document.getElementById('rContenido').innerText = document.getElementById('paqContenido').value;
             document.getElementById('rTotal').innerText = parseFloat(totalCobradoSeleccionado).toFixed(2);
             
-            // Textos legales dinámicos
             document.getElementById('rPaqTel').innerText = datosContacto.tel;
             document.getElementById('rPaqWeb').innerText = datosContacto.web;
             document.getElementById('rFirmaNombre').innerText = nombreRemitente;
             
-            // Mostrar botón de Imprimir
             document.getElementById('btnImprimirRecibo').style.display = 'block';
 
           } catch (err) {
@@ -595,7 +604,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Endpoint seguro Cotizar (Disponible para ambos roles)
+// Endpoint seguro Cotizar 
 app.post('/api/cotizar', async (req, res) => {
   const apiKey = process.env.ENVIAFACIL_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Falta ENVIAFACIL_API_KEY' });
@@ -613,10 +622,8 @@ app.post('/api/cotizar', async (req, res) => {
   }
 });
 
-// Endpoint seguro Generar Guía (DOBLE CANDADO: Solo Cajeros)
+// Endpoint seguro Generar Guía (Bloqueo para "solo_lectura")
 app.post('/api/guias', async (req, res) => {
-  
-  // PROTECCIÓN DEL SERVIDOR (Bloquea usuarios 'solo_lectura' como 'moball' por si intentan hackear)
   if (req.rolLiten !== 'cajero') {
     return res.status(403).json({ error: 'Operación denegada. Este usuario solo tiene permisos para cotizar, no para gastar saldo.' });
   }
@@ -641,4 +648,4 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo con Todas las Mejoras Integradas.'));
+app.listen(PORT, () => console.log('Liten Express operativo.'));
