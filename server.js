@@ -7,24 +7,30 @@ const PORT = process.env.PORT || 3000;
 const BASE_URL = 'https://guias-api.enviafacil.shop/api/v1';
 
 // ---------------------------------------------------------
-// BASE DE DATOS DE USUARIOS Y ROLES LITEN EXPRESS
+// BASE DE DATOS DE USUARIOS, ROLES Y TARIFAS LITEN EXPRESS
 // ---------------------------------------------------------
-const USUARIOS_CAJERO = {
-  "deyanira": "@Alan2015*",
-  "Jorge": "@Alan2015*",
-  "caja1": "@Liten123*",
-  "caja2": "@Liten123*",
-  "joseluis": "Pablito1122"
-};
+const adminUser = process.env.APP_USER || 'admin';
+const adminPass = process.env.APP_PASSWORD || 'Liten2026*';
 
-const USUARIOS_SOLO_LECTURA = {
-  "moball": "llegodios123",
-  "ventas": "Liten2026"
-};
+const BASE_DATOS_USUARIOS = {
+  // CAJEROS LOCALES (Generan guías + Tarifa Local 125%/65%)
+  [adminUser]: { pass: adminPass, rol: 'cajero', tarifa: 'local' },
+  "deyanira": { pass: "@Alan2015*", rol: 'cajero', tarifa: 'local' },
+  "Jorge": { pass: "@Alan2015*", rol: 'cajero', tarifa: 'local' },
+  "caja1": { pass: "@Liten123*", rol: 'cajero', tarifa: 'local' },
+  "caja2": { pass: "@Liten123*", rol: 'cajero', tarifa: 'local' },
+  "joseluis": { pass: "Pablito1122", rol: 'cajero', tarifa: 'local' },
 
-const ADMIN_USER = process.env.APP_USER || 'admin';
-const ADMIN_PASS = process.env.APP_PASSWORD || 'Liten2026*';
-USUARIOS_CAJERO[ADMIN_USER] = ADMIN_PASS;
+  // SOLO LECTURA LOCAL (Solo cotizan + Tarifa Local 125%/65%)
+  "cotizador": { pass: "cotiza", rol: 'solo_lectura', tarifa: 'local' },
+
+  // CAJERO COMERCIAL (Generan guías + Tarifa Comercial 150%/90%)
+  "guiascomerciales": { pass: "@Alan2015*", rol: 'cajero', tarifa: 'comercial' },
+
+  // SOLO LECTURA COMERCIAL (Solo cotizan + Tarifa Comercial 150%/90%)
+  "moball": { pass: "llegodios123", rol: 'solo_lectura', tarifa: 'comercial' },
+  "cotizaya": { pass: "Cotiza2026", rol: 'solo_lectura', tarifa: 'comercial' }
+};
 
 app.use(express.json());
 
@@ -39,17 +45,13 @@ app.use((req, res, next) => {
   const token = authHeader.split(' ')[1] || '';
   const [usuario, password] = Buffer.from(token, 'base64').toString().split(':');
 
-  let rolAsignado = null;
+  const usuarioDb = BASE_DATOS_USUARIOS[usuario];
 
-  if (USUARIOS_CAJERO[usuario] && USUARIOS_CAJERO[usuario] === password) {
-    rolAsignado = 'cajero';
-  } else if (USUARIOS_SOLO_LECTURA[usuario] && USUARIOS_SOLO_LECTURA[usuario] === password) {
-    rolAsignado = 'solo_lectura';
-  }
-
-  if (rolAsignado) {
+  // Si el usuario existe y la contraseña coincide
+  if (usuarioDb && usuarioDb.pass === password) {
     req.usuarioLiten = usuario; 
-    req.rolLiten = rolAsignado;
+    req.rolLiten = usuarioDb.rol;
+    req.tarifaLiten = usuarioDb.tarifa;
     return next();
   }
 
@@ -65,6 +67,7 @@ app.use(express.static(__dirname));
 app.get('/', (req, res) => {
   const usuarioActual = req.usuarioLiten || 'Cajero';
   const rolActual = req.rolLiten || 'solo_lectura';
+  const tarifaActual = req.tarifaLiten || 'local'; // Puede ser 'local' o 'comercial'
 
   res.send(`
     <!DOCTYPE html>
@@ -86,6 +89,7 @@ app.get('/', (req, res) => {
         .header p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
         .badge-seguridad { background: #dcfce7; color: #166534; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; }
         .badge-solo-lectura { background: #fee2e2; color: #991b1b; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; display: ${rolActual === 'solo_lectura' ? 'inline-block' : 'none'}; margin-top: 5px; }
+        .badge-tarifa { background: #fef08a; color: #854d0e; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 5px; }
         
         .section-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 18px 0 10px; border-left: 4px solid #2563eb; padding-left: 8px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
@@ -109,11 +113,10 @@ app.get('/', (req, res) => {
         .desglose-precios { display: flex; flex-direction: column; align-items: flex-end; text-align: right; min-width: 180px; }
         .rubro-precio { font-size: 13px; color: #475569; margin-bottom: 4px; }
         .peso-facturado { color: #1e40af; font-weight: 600; font-size: 12px; margin-top: 4px; display: inline-block; background: #dbeafe; padding: 2px 6px; border-radius: 4px; }
-        .nota-operativa { color: #b91c1c; font-size: 11px; font-weight: 600; margin-top: 6px; display: block; font-style: italic; }
-
-        /* Estilos para la nueva ALERTA DE CARGOS EXTRAS */
+        
         .alerta-cargos { background: #fef08a; color: #854d0e; padding: 8px 10px; border-radius: 6px; font-size: 11px; margin-top: 8px; border: 1px solid #fde047; }
         .alerta-cargos ul { margin: 4px 0 0 0; padding-left: 20px; }
+        .nota-operativa { font-weight: bold; font-style: italic; }
 
         /* Estilos del Recibo (Ocultos en pantalla normal) */
         #reciboLiten { display: none; }
@@ -143,7 +146,6 @@ app.get('/', (req, res) => {
     </head>
     <body>
       <div class="container">
-        <!-- Logo Liten Express -->
         <div class="logo-container">
           <img src="/logo.png" alt="Liten Express" onerror="this.style.display='none'">
         </div>
@@ -152,6 +154,7 @@ app.get('/', (req, res) => {
           <div>
             <h1>Liten Express</h1>
             <p>Hola, <strong>${usuarioActual}</strong> - Generador de Guías</p>
+            <span class="badge-tarifa">🏷️ Aplicando Tarifa: ${tarifaActual.toUpperCase()}</span>
             <span class="badge-solo-lectura">⚠️ Modo Consulta (Generar guías desactivado)</span>
           </div>
           <span class="badge-seguridad">🔒 Entorno Real Activo</span>
@@ -214,7 +217,6 @@ app.get('/', (req, res) => {
                 <input type="text" id="remEmpresa" value="Comercio Electrónico Liten">
               </div>
               
-              <!-- CAMPOS DE IDENTIFICACIÓN -->
               <div>
                 <label>Tipo de Identificación</label>
                 <select id="remIdTipo" required>
@@ -291,9 +293,7 @@ app.get('/', (req, res) => {
         </div>
       </div>
 
-      <!-- ======================================================== -->
-      <!-- ESTRUCTURA DEL RECIBO LEGAL OCULTO (TICKET)              -->
-      <!-- ======================================================== -->
+      <!-- RECIBO LEGAL OCULTO -->
       <div id="reciboLiten">
           <div style="text-align: center; margin-bottom: 10px;">
               <strong style="font-size: 16px;">LITEN EXPRESS</strong><br>
@@ -352,13 +352,14 @@ app.get('/', (req, res) => {
 
       <script>
         const ROL_USUARIO_ACTUAL = '${rolActual}'; // Inyectado desde el servidor
+        const TARIFA_USUARIO_ACTUAL = '${tarifaActual}'; // Inyectado desde el servidor
+
         let cotizacionActual = null;
         let servicioSeleccionado = null;
         let nombrePaqueteriaSeleccionada = '';
         let totalCobradoSeleccionado = 0;
         let pesoFacturadoSeleccionado = 0;
 
-        // Base de datos de Contacto Oficial de Paqueterías
         function obtenerContactoPaqueteria(nombrePaq) {
             const paq = nombrePaq.toUpperCase();
             if (paq.includes('DHL')) return { tel: '55 5345 7000', web: 'www.dhl.com/mx-es' };
@@ -371,7 +372,6 @@ app.get('/', (req, res) => {
             return { tel: 'Consulte portal web oficial', web: 'Buscar nombre en Google' };
         }
 
-        // DICCIONARIO INTELIGENTE DE ADVERTENCIAS OPERATIVAS
         function obtenerNotaOperativa(nombrePaq) {
             const n = nombrePaq.toUpperCase();
             if (n.includes('MANUAL')) {
@@ -384,7 +384,7 @@ app.get('/', (req, res) => {
                 n === 'PAQUETEXPRESS TERRESTRE P') {
                 return "*cargos extras se pagan en mostrador*";
             }
-            return "cargos extras se paga con monedero"; // Por defecto
+            return "cargos extras se paga con monedero"; 
         }
 
         document.getElementById('cotizadorForm').addEventListener('submit', async (e) => {
@@ -406,8 +406,8 @@ app.get('/', (req, res) => {
             largo: parseInt(document.getElementById('largo').value, 10),
             ancho: parseInt(document.getElementById('ancho').value, 10),
             alto: parseInt(document.getElementById('alto').value, 10),
-            envioAsegurado: false, // NOTA: Aquí se puede habilitar el seguro a futuro
-            conRecoleccion: false  // NOTA: Aquí se puede habilitar recolecciones
+            envioAsegurado: false, 
+            conRecoleccion: false  
           };
 
           try {
@@ -429,11 +429,22 @@ app.get('/', (req, res) => {
             let html = '<h3 style="margin-bottom: 12px;">Selecciona la paquetería para crear la guía:</h3>';
             data.servicios.forEach(s => {
               
-              // LÓGICA DE PRECIOS DINÁMICOS
+              // ==============================================================
+              // NUEVA LÓGICA DE PRECIOS MATRICIAL (LOCAL VS COMERCIAL)
+              // ==============================================================
               const costoTraslado = parseFloat(s.total); 
-              let multiplicadorServicio = 1.25; 
-              if (/DHL/i.test(s.nombre)) {
-                multiplicadorServicio = 0.65;
+              
+              let multiplicadorServicio;
+
+              // Si es tarifa COMERCIAL: 1.50 (150%) o 0.90 (90%) para DHL
+              if (TARIFA_USUARIO_ACTUAL === 'comercial') {
+                  multiplicadorServicio = 1.50; 
+                  if (/DHL/i.test(s.nombre)) multiplicadorServicio = 0.90;
+              } 
+              // Si es tarifa LOCAL (cajeros normales): 1.25 (125%) o 0.65 (65%) para DHL
+              else {
+                  multiplicadorServicio = 1.25; 
+                  if (/DHL/i.test(s.nombre)) multiplicadorServicio = 0.65;
               }
 
               const costoServicio = costoTraslado * multiplicadorServicio; 
@@ -441,17 +452,19 @@ app.get('/', (req, res) => {
               
               const notaAdvertencia = obtenerNotaOperativa(s.nombre);
 
-              // >>> NUEVO: DETECTOR VISUAL DE CARGOS EXTRAS <<<
-              let htmlCargosExtras = '';
+              // Detector visual de recargos ocultos
+              let htmlCargosExtras = \`<div class="alerta-cargos"><span class="nota-operativa">⚠️ \${notaAdvertencia}</span>\`;
+              
               if (s.cargosAplicados && s.cargosAplicados.length > 0) {
-                  htmlCargosExtras = \`<div class="alerta-cargos"><strong>⚠️ Cargos extras incluidos en tarifa:</strong><ul>\`;
+                  htmlCargosExtras += \`<ul>\`;
                   s.cargosAplicados.forEach(cargo => {
                       htmlCargosExtras += \`<li>\${cargo.concepto}: $\${cargo.monto.toFixed(2)}</li>\`;
                   });
-                  htmlCargosExtras += \`</ul></div>\`;
+                  htmlCargosExtras += \`</ul>\`;
               }
+              htmlCargosExtras += \`</div>\`;
 
-              // LÓGICA DE ROLES VISUAL: Ocultar botón si es "solo_lectura"
+              // Ocultar botón si es "solo_lectura"
               let botonHTML = '';
               if (ROL_USUARIO_ACTUAL === 'cajero') {
                   botonHTML = \`<button type="button" class="btn-success" style="width: 100%; padding: 10px;" onclick="seleccionarServicio(\${s.idservicio}, '\${s.nombre}', \${costoTotalMuestra}, \${s.kg})">Seleccionar</button>\`;
@@ -464,8 +477,7 @@ app.get('/', (req, res) => {
                   <div style="flex: 1;">
                     <strong style="font-size: 16px;">\${s.nombre}</strong><br>
                     <small style="color: #64748b;">Entrega estimada: \${s.dias} días hábiles</small><br>
-                    <span class="peso-facturado">Peso a cobrar: \${s.kg} kg</span><br>
-                    <span class="nota-operativa">\${notaAdvertencia}</span>
+                    <span class="peso-facturado">Peso a cobrar: \${s.kg} kg</span>
                     \${htmlCargosExtras}
                   </div>
                   
@@ -562,7 +574,6 @@ app.get('/', (req, res) => {
               </div>
             \`;
 
-            // === LLENAR DATOS DEL RECIBO LEGAL ===
             const paqueteriaFinal = data.paqueteria || nombrePaqueteriaSeleccionada;
             const datosContacto = obtenerContactoPaqueteria(paqueteriaFinal);
 
@@ -648,4 +659,4 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo.'));
+app.listen(PORT, () => console.log('Liten Express operativo con Tarifas Dinámicas.'));
