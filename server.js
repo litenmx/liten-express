@@ -7,6 +7,18 @@ const PORT = process.env.PORT || 3000;
 const BASE_URL = 'https://guias-api.enviafacil.shop/api/v1';
 
 // ---------------------------------------------------------
+// DATOS LEGALES Y SUCURSAL LITEN EXPRESS
+// ---------------------------------------------------------
+const DATOS_NEGOCIO = {
+  razon_social: "COMERCIO ELECTRÓNICO LITEN",
+  marca: "Liten Express Paquetería",
+  calle_numero: "Constituyentes 3170",
+  referencia: "(Entre F. Canal y E. Morales)",
+  colonia_cp: "Centro, Veracruz, Ver. CP 91700",
+  contacto: "Tel y WhatsApp: 229-667-6770"
+};
+
+// ---------------------------------------------------------
 // BASE DE DATOS DE USUARIOS, ROLES Y TARIFAS LITEN EXPRESS
 // ---------------------------------------------------------
 const adminUser = process.env.APP_USER || 'admin';
@@ -33,41 +45,120 @@ const BASE_DATOS_USUARIOS = {
 };
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(__dirname));
 
-// Evita que la contraseña parpadee por culpa del favicon
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // ==========================================
-// 1. CANDADO DE SEGURIDAD Y ROLES
+// FUNCIÓN PARA LEER COOKIES (SIN LIBRERÍAS EXTRA)
 // ==========================================
-app.use((req, res, next) => {
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.split(' ')[1] || '';
-  const [usuario, password] = Buffer.from(token, 'base64').toString().split(':');
+function parseCookies(request) {
+    const list = {};
+    const cookieHeader = request.headers?.cookie;
+    if (!cookieHeader) return list;
+    cookieHeader.split(';').forEach(cookie => {
+        let [name, ...rest] = cookie.split('=');
+        name = name?.trim();
+        if (!name) return;
+        const value = rest.join('=').trim();
+        if (!value) return;
+        list[name] = decodeURIComponent(value);
+    });
+    return list;
+}
 
-  const usuarioDb = BASE_DATOS_USUARIOS[usuario];
+// ==========================================
+// SISTEMA DE SESIÓN WEB (LOGIN FORMULARIO)
+// ==========================================
 
-  // Si el usuario existe y la contraseña coincide
-  if (usuarioDb && usuarioDb.pass === password) {
-    req.usuarioLiten = usuario; 
-    req.rolLiten = usuarioDb.rol;
-    req.tarifaLiten = usuarioDb.tarifa;
-    return next();
-  }
-
-  res.set('WWW-Authenticate', 'Basic realm="Acceso Privado Liten Express"');
-  return res.status(401).send('Acceso no autorizado. Ingrese credenciales autorizadas de Liten Express.');
+// 1. Mostrar Pantalla de Login
+app.get('/login', (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Acceso - Liten Express</title>
+            <style>
+                body { background: #f1f5f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: -apple-system, sans-serif; color: #1e293b; }
+                .login-card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); width: 100%; max-width: 360px; text-align: center; }
+                .login-card h2 { color: #1e40af; margin-bottom: 5px; font-size: 20px; }
+                .login-card p { color: #64748b; font-size: 13px; margin-bottom: 25px; }
+                input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+                input:focus { outline: none; border-color: #2563eb; }
+                button { width: 100%; background: #2563eb; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; }
+                button:hover { background: #1d4ed8; }
+            </style>
+        </head>
+        <body>
+            <div class="login-card">
+                <img src="/logo.png" style="max-height: 90px; margin-bottom: 10px;" alt="Liten Express" onerror="this.style.display='none'">
+                <h2>${DATOS_NEGOCIO.razon_social}</h2>
+                <p>Acceso al Portal de Operaciones</p>
+                <form action="/login" method="POST">
+                    <input type="text" name="usuario" placeholder="Usuario" required autocomplete="off">
+                    <input type="password" name="password" placeholder="Contraseña" required>
+                    <button type="submit">Ingresar al Portal</button>
+                </form>
+            </div>
+        </body>
+        </html>
+    `);
 });
 
-app.use(express.static(__dirname));
+// 2. Procesar Login
+app.post('/login', (req, res) => {
+    const { usuario, password } = req.body;
+    const usuarioDb = BASE_DATOS_USUARIOS[usuario];
+
+    if (usuarioDb && usuarioDb.pass === password) {
+        // Genera un token simple y lo guarda en cookie por 12 horas
+        const token = Buffer.from(`${usuario}:${password}`).toString('base64');
+        res.setHeader('Set-Cookie', \`liten_auth=\${token}; HttpOnly; Path=/; Max-Age=43200\`);
+        return res.redirect('/');
+    }
+    // Si falla, regresa con alerta
+    res.send(\`<script>alert("Credenciales incorrectas. Intente de nuevo."); window.location.href="/login";</script>\`);
+});
+
+// 3. Cerrar Sesión
+app.get('/logout', (req, res) => {
+    // Destruye la cookie
+    res.setHeader('Set-Cookie', \`liten_auth=; HttpOnly; Path=/; Max-Age=0\`);
+    res.redirect('/login');
+});
 
 // ==========================================
-// 3. PORTAL WEB LITEN EXPRESS
+// CANDADO GENERAL PARA RUTAS PROTEGIDAS
+// ==========================================
+app.use((req, res, next) => {
+  const cookies = parseCookies(req);
+  const token = cookies['liten_auth'];
+
+  if (token) {
+      const [usuario, password] = Buffer.from(token, 'base64').toString().split(':');
+      const usuarioDb = BASE_DATOS_USUARIOS[usuario];
+      
+      if (usuarioDb && usuarioDb.pass === password) {
+          req.usuarioLiten = usuario; 
+          req.rolLiten = usuarioDb.rol;
+          req.tarifaLiten = usuarioDb.tarifa;
+          return next();
+      }
+  }
+  // Si no hay sesión, manda a login
+  return res.redirect('/login');
+});
+
+// ==========================================
+// PORTAL WEB LITEN EXPRESS (PROTEGIDO)
 // ==========================================
 app.get('/', (req, res) => {
-  const usuarioActual = req.usuarioLiten || 'Cajero';
-  const rolActual = req.rolLiten || 'solo_lectura';
-  const tarifaActual = req.tarifaLiten || 'local'; // Puede ser 'local' o 'comercial'
+  const usuarioActual = req.usuarioLiten;
+  const rolActual = req.rolLiten;
+  const tarifaActual = req.tarifaLiten;
 
   res.send(`
     <!DOCTYPE html>
@@ -84,13 +175,15 @@ app.get('/', (req, res) => {
         .logo-container { text-align: center; margin-bottom: 16px; }
         .logo-container img { max-height: 180px; max-width: 100%; height: auto; border-radius: 8px; object-fit: contain; }
 
-        .header { border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .header { border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
         .header h1 { margin: 0; color: #1e40af; font-size: 24px; }
         .header p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
-        .badge-seguridad { background: #dcfce7; color: #166534; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; }
+        .badge-seguridad { background: #dcfce7; color: #166534; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-bottom: 8px; }
         .badge-solo-lectura { background: #fee2e2; color: #991b1b; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; display: ${rolActual === 'solo_lectura' ? 'inline-block' : 'none'}; margin-top: 5px; }
         .badge-tarifa { background: #fef08a; color: #854d0e; font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 5px; }
-        
+        .btn-logout { background: #ef4444; color: white; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: bold; display: inline-block; }
+        .btn-logout:hover { background: #dc2626; }
+
         .section-title { font-size: 16px; font-weight: 700; color: #0f172a; margin: 18px 0 10px; border-left: 4px solid #2563eb; padding-left: 8px; }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
         .full { grid-column: span 2; }
@@ -121,26 +214,55 @@ app.get('/', (req, res) => {
         /* Estilos del Recibo (Ocultos en pantalla normal) */
         #reciboLiten { display: none; }
 
+        /* ========================================================= */
+        /* NUEVO FORMATO DE IMPRESIÓN (TAMAÑO CARTA / A4 - CARETA)   */
+        /* ========================================================= */
         @media print {
           body * { visibility: hidden; } 
+          body { background: white; margin: 0; padding: 0; }
           #reciboLiten, #reciboLiten * { visibility: visible; } 
+          
           #reciboLiten { 
             display: block; 
             position: absolute; 
             left: 0; 
             top: 0; 
             width: 100%; 
-            max-width: 320px; 
-            padding: 10px; 
-            font-family: 'Courier New', Courier, monospace; 
-            font-size: 12px; 
+            padding: 30px; 
+            font-family: Arial, Helvetica, sans-serif; 
             color: #000;
-            line-height: 1.4;
+            line-height: 1.5;
           }
-          @page { margin: 0; }
-          .separador { border-top: 1px dashed #000; margin: 10px 0; }
-          .texto-legal { font-size: 10px; text-align: justify; margin-top: 10px; }
-          .firma-box { text-align: center; margin-top: 40px; margin-bottom: 10px; }
+          @page { margin: 1cm; size: letter; }
+          
+          /* Encabezado / Membrete */
+          .recibo-header { display: flex; justify-content: space-between; border-bottom: 3px solid #1e40af; padding-bottom: 15px; margin-bottom: 25px; }
+          .recibo-logo { max-height: 80px; max-width: 250px; }
+          .recibo-empresa { text-align: right; font-size: 11px; color: #333; }
+          .recibo-empresa strong { font-size: 14px; display: block; color: #000; }
+          
+          /* Título Central */
+          .recibo-titulo { text-align: center; font-size: 20px; font-weight: bold; margin: 20px 0; letter-spacing: 1px; text-transform: uppercase; }
+          .recibo-meta { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 20px; font-weight: bold; }
+          
+          /* 2 Columnas: Remitente / Destino */
+          .recibo-columnas { display: flex; justify-content: space-between; gap: 30px; margin-bottom: 30px; }
+          .recibo-col { flex: 1; border: 1px solid #ccc; padding: 15px; border-radius: 8px; }
+          .recibo-col h4 { margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; color: #1e40af; text-transform: uppercase; font-size: 13px; }
+          .recibo-dato-linea { font-size: 12px; margin-bottom: 5px; }
+          
+          /* Tabla Operativa */
+          .recibo-tabla { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          .recibo-tabla th, .recibo-tabla td { border: 1px solid #aaa; padding: 12px; text-align: left; font-size: 13px; }
+          .recibo-tabla th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; color: #000; }
+          
+          /* Total */
+          .recibo-total { text-align: right; font-size: 22px; margin-top: 15px; border-top: 2px solid #000; padding-top: 10px; }
+          
+          /* Legales y Firma */
+          .recibo-footer { margin-top: 40px; font-size: 10px; color: #444; text-align: justify; }
+          .recibo-firma-box { text-align: center; margin-top: 80px; page-break-inside: avoid; }
+          .recibo-firma-linea { border-top: 1px solid #000; width: 300px; margin: 0 auto 10px auto; }
         }
       </style>
     </head>
@@ -157,7 +279,10 @@ app.get('/', (req, res) => {
             <span class="badge-tarifa">🏷️ Aplicando Tarifa: ${tarifaActual.toUpperCase()}</span>
             <span class="badge-solo-lectura">⚠️ Modo Consulta (Generar guías desactivado)</span>
           </div>
-          <span class="badge-seguridad">🔒 Entorno Real Activo</span>
+          <div style="text-align: right;">
+            <span class="badge-seguridad">🔒 Entorno Real Activo</span><br><br>
+            <a href="/logout" class="btn-logout">Cerrar Sesión</a>
+          </div>
         </div>
 
         <!-- PASO 1: COTIZACIÓN -->
@@ -214,7 +339,7 @@ app.get('/', (req, res) => {
               </div>
               <div>
                 <label>Empresa (Opcional)</label>
-                <input type="text" id="remEmpresa" value="Comercio Electrónico Liten">
+                <input type="text" id="remEmpresa" value="${DATOS_NEGOCIO.marca}">
               </div>
               
               <div>
@@ -289,70 +414,98 @@ app.get('/', (req, res) => {
           </form>
 
           <div id="resultadoFinal"></div>
-          <button id="btnImprimirRecibo" class="btn-print" onclick="window.print()">🖨️ Imprimir Comprobante de Envío</button>
+          <button id="btnImprimirRecibo" class="btn-print" onclick="window.print()">🖨️ Imprimir Formato de Envío (Tamaño Carta)</button>
         </div>
       </div>
 
-      <!-- RECIBO LEGAL OCULTO -->
+      <!-- ======================================================== -->
+      <!-- NUEVO RECIBO TAMAÑO CARTA OCULTO (CARETA OFICIAL)        -->
+      <!-- ======================================================== -->
       <div id="reciboLiten">
-          <div style="text-align: center; margin-bottom: 10px;">
-              <strong style="font-size: 16px;">LITEN EXPRESS</strong><br>
-              Comprobante de Envío<br>
+          
+          <!-- Membrete -->
+          <div class="recibo-header">
+              <div>
+                  <img src="/logo.png" class="recibo-logo" alt="Logo Liten Express" onerror="this.style.display='none'">
+              </div>
+              <div class="recibo-empresa">
+                  <strong>${DATOS_NEGOCIO.razon_social}</strong>
+                  ${DATOS_NEGOCIO.marca}<br>
+                  ${DATOS_NEGOCIO.calle_numero} ${DATOS_NEGOCIO.referencia}<br>
+                  ${DATOS_NEGOCIO.colonia_cp}<br>
+                  ${DATOS_NEGOCIO.contacto}
+              </div>
           </div>
-          <div class="separador"></div>
-          <div>
-              <strong>Fecha:</strong> <span id="rFecha"></span><br>
-              <strong>Cajero:</strong> ${usuarioActual}<br>
+
+          <div class="recibo-titulo">COMPROBANTE OFICIAL DE ENVÍO Y RECEPCIÓN</div>
+          
+          <div class="recibo-meta">
+              <div>Cajero Atendió: <span style="font-weight:normal;">${usuarioActual}</span></div>
+              <div>Fecha de Emisión: <span id="rFecha" style="font-weight:normal;"></span></div>
           </div>
-          <div class="separador"></div>
-          <div>
-              <strong>REMITENTE:</strong><br>
-              <span id="rRemNombre"></span><br>
-              Id: <span id="rRemIdentificacion"></span><br>
-              Tel: <span id="rRemTel"></span><br>
-              <br>
-              <strong>DESTINATARIO:</strong><br>
-              <span id="rDestNombre"></span><br>
-              <span id="rDestDir"></span><br>
-              CP: <span id="rDestCP"></span><br>
-              Tel: <span id="rDestTel"></span><br>
+
+          <!-- Datos de Clientes a 2 Columnas -->
+          <div class="recibo-columnas">
+              <div class="recibo-col">
+                  <h4>Datos del Remitente</h4>
+                  <div class="recibo-dato-linea"><strong>Nombre:</strong> <span id="rRemNombre"></span></div>
+                  <div class="recibo-dato-linea"><strong>Identificación:</strong> <span id="rRemIdentificacion"></span></div>
+                  <div class="recibo-dato-linea"><strong>Teléfono:</strong> <span id="rRemTel"></span></div>
+              </div>
+              <div class="recibo-col">
+                  <h4>Datos del Destinatario</h4>
+                  <div class="recibo-dato-linea"><strong>Nombre:</strong> <span id="rDestNombre"></span></div>
+                  <div class="recibo-dato-linea"><strong>Dirección:</strong> <span id="rDestDir"></span></div>
+                  <div class="recibo-dato-linea"><strong>C.P.:</strong> <span id="rDestCP"></span></div>
+                  <div class="recibo-dato-linea"><strong>Teléfono:</strong> <span id="rDestTel"></span></div>
+              </div>
           </div>
-          <div class="separador"></div>
-          <div>
-              <strong>Paquetería:</strong> <span id="rPaqueteria"></span><br>
-              <strong>Rastreo:</strong> <span id="rRastreo"></span><br>
-              <strong>Peso facturado:</strong> <span id="rPeso"></span> kg<br>
-              <strong>Contenido:</strong> <span id="rContenido"></span><br>
-          </div>
-          <div class="separador"></div>
-          <div style="text-align: right; margin-top: 10px; font-size: 16px;">
-              <strong>TOTAL: $<span id="rTotal"></span> MXN</strong>
+
+          <!-- Tabla de Servicio -->
+          <table class="recibo-tabla">
+              <thead>
+                  <tr>
+                      <th>Paquetería Asignada</th>
+                      <th>Número de Rastreo</th>
+                      <th>Contenido Declarado</th>
+                      <th>Peso Facturado</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  <tr>
+                      <td><strong id="rPaqueteria"></strong></td>
+                      <td><strong id="rRastreo" style="font-size:16px;"></strong></td>
+                      <td id="rContenido"></td>
+                      <td><span id="rPeso"></span> kg</td>
+                  </tr>
+              </tbody>
+          </table>
+
+          <div class="recibo-total">
+              <strong>TOTAL COBRADO: $<span id="rTotal"></span> MXN</strong>
           </div>
           
-          <div class="separador" style="margin-top: 15px;"></div>
-          <div class="texto-legal">
-              <strong>ATENCIÓN AL CLIENTE:</strong><br>
-              Todo seguimiento, reclamo o duda respecto a la entrega es <strong>exclusivamente</strong> a través de la paquetería asignada:<br>
-              Teléfono: <strong id="rPaqTel"></strong><br>
-              Web: <strong id="rPaqWeb"></strong><br><br>
-              <em>Nota: Esta sucursal opera únicamente como centro de recepción y emisión de envíos. La oficina solo recibe y genera sus envíos, mas no cuenta con área de atención a clientes para rastreos, reclamos o demoras.</em>
+          <!-- Legales y Firma -->
+          <div class="recibo-footer">
+              <p><strong>ATENCIÓN AL CLIENTE Y RASTREO DE PAQUETES:</strong><br>
+              Todo seguimiento, reclamo o duda respecto al estatus y tiempo de entrega de su paquete es <strong>exclusivamente</strong> a través de la empresa de paquetería asignada. Liten Express proporciona los siguientes medios de contacto directos de su paquetería:<br>
+              Teléfono Oficial: <strong id="rPaqTel"></strong> | Portal Web: <strong id="rPaqWeb"></strong><br>
+              <em>Nota aclaratoria: Esta sucursal opera únicamente como centro de recepción y emisión de envíos. La oficina solo recibe y genera sus guías, mas no cuenta con área operativa de paquetería para realizar rastreos, resolver reclamos, indemnizaciones o justificar demoras.</em></p>
+
+              <p><strong>TÉRMINOS Y CONDICIONES (${DATOS_NEGOCIO.razon_social}):</strong><br>
+              Al firmar este comprobante, el remitente declara bajo protesta de decir verdad que el contenido del paquete es totalmente lícito, no incluye artículos prohibidos, inflamables, valores o efectivo, y no infringe las regulaciones vigentes en territorio nacional. Liten Express actúa únicamente como un intermediario tecnológico para la generación de la guía prepagada y no se hace responsable por daños, mermas, extravíos, robos o demoras en la entrega, siendo estos atribuibles directa y exclusivamente a la empresa de paquetería contratada de acuerdo con sus propios términos de servicio.</p>
           </div>
 
-          <div class="firma-box">
-              _________________________________<br>
-              Firma de aceptación<br>
+          <div class="recibo-firma-box">
+              <div class="recibo-firma-linea"></div>
+              <strong>Firma de conformidad y aceptación del remitente</strong><br>
               <span id="rFirmaNombre"></span>
-          </div>
-
-          <div class="texto-legal" style="font-size: 9px;">
-              <strong>COMERCIO ELECTRÓNICO LITEN</strong><br>
-              Al firmar este recibo, el remitente acepta los Términos y Condiciones del servicio, declarando que el contenido del paquete es lícito, no incluye artículos prohibidos y no infringe regulaciones nacionales. Liten Express actúa como intermediario tecnológico y no se hace responsable por daños, extravíos, robos o demoras atribuibles directamente a la empresa de paquetería contratada.
           </div>
       </div>
 
       <script>
-        const ROL_USUARIO_ACTUAL = '${rolActual}'; // Inyectado desde el servidor
-        const TARIFA_USUARIO_ACTUAL = '${tarifaActual}'; // Inyectado desde el servidor
+        const ROL_USUARIO_ACTUAL = '${rolActual}'; 
+        const TARIFA_USUARIO_ACTUAL = '${tarifaActual}'; 
 
         let cotizacionActual = null;
         let servicioSeleccionado = null;
@@ -430,19 +583,16 @@ app.get('/', (req, res) => {
             data.servicios.forEach(s => {
               
               // ==============================================================
-              // NUEVA LÓGICA DE PRECIOS MATRICIAL (LOCAL VS COMERCIAL)
+              // LÓGICA DE PRECIOS MATRICIAL (LOCAL VS COMERCIAL)
               // ==============================================================
               const costoTraslado = parseFloat(s.total); 
               
               let multiplicadorServicio;
 
-              // Si es tarifa COMERCIAL: 1.50 (150%) o 0.90 (90%) para DHL
               if (TARIFA_USUARIO_ACTUAL === 'comercial') {
                   multiplicadorServicio = 1.50; 
                   if (/DHL/i.test(s.nombre)) multiplicadorServicio = 0.90;
-              } 
-              // Si es tarifa LOCAL (cajeros normales): 1.25 (125%) o 0.65 (65%) para DHL
-              else {
+              } else {
                   multiplicadorServicio = 1.25; 
                   if (/DHL/i.test(s.nombre)) multiplicadorServicio = 0.65;
               }
@@ -574,6 +724,7 @@ app.get('/', (req, res) => {
               </div>
             \`;
 
+            // === LLENAR DATOS DEL RECIBO FORMAL CARTA ===
             const paqueteriaFinal = data.paqueteria || nombrePaqueteriaSeleccionada;
             const datosContacto = obtenerContactoPaqueteria(paqueteriaFinal);
 
@@ -633,7 +784,7 @@ app.post('/api/cotizar', async (req, res) => {
   }
 });
 
-// Endpoint seguro Generar Guía (Bloqueo para "solo_lectura")
+// Endpoint seguro Generar Guía
 app.post('/api/guias', async (req, res) => {
   if (req.rolLiten !== 'cajero') {
     return res.status(403).json({ error: 'Operación denegada. Este usuario solo tiene permisos para cotizar, no para gastar saldo.' });
@@ -659,4 +810,4 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo con Tarifas Dinámicas.'));
+app.listen(PORT, () => console.log('Liten Express operativo con Sesiones Web y Recibo Formal.'));
