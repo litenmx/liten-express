@@ -115,18 +115,18 @@ app.post('/login', (req, res) => {
 
     if (usuarioDb && usuarioDb.pass === password) {
         // Genera un token simple y lo guarda en cookie por 12 horas
-        const token = Buffer.from(`${usuario}:${password}`).toString('base64');
-        res.setHeader('Set-Cookie', \`liten_auth=\${token}; HttpOnly; Path=/; Max-Age=43200\`);
+        const token = Buffer.from(usuario + ':' + password).toString('base64');
+        res.setHeader('Set-Cookie', 'liten_auth=' + token + '; HttpOnly; Path=/; Max-Age=43200');
         return res.redirect('/');
     }
     // Si falla, regresa con alerta
-    res.send(\`<script>alert("Credenciales incorrectas. Intente de nuevo."); window.location.href="/login";</script>\`);
+    res.send('<script>alert("Credenciales incorrectas. Intente de nuevo."); window.location.href="/login";</script>');
 });
 
 // 3. Cerrar Sesión
 app.get('/logout', (req, res) => {
     // Destruye la cookie
-    res.setHeader('Set-Cookie', \`liten_auth=; HttpOnly; Path=/; Max-Age=0\`);
+    res.setHeader('Set-Cookie', 'liten_auth=; HttpOnly; Path=/; Max-Age=0');
     res.redirect('/login');
 });
 
@@ -772,7 +772,7 @@ app.post('/api/cotizar', async (req, res) => {
   if (!apiKey) return res.status(500).json({ error: 'Falta ENVIAFACIL_API_KEY' });
 
   try {
-    const apiRes = await fetch(`${BASE_URL}/cotizacion`, {
+    const apiRes = await fetch(BASE_URL + '/cotizacion', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
       body: JSON.stringify(req.body)
@@ -794,7 +794,7 @@ app.post('/api/guias', async (req, res) => {
   if (!apiKey) return res.status(500).json({ error: 'Falta ENVIAFACIL_API_KEY' });
 
   try {
-    const apiRes = await fetch(`${BASE_URL}/guias`, {
+    const apiRes = await fetch(BASE_URL + '/guias', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
