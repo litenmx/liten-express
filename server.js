@@ -169,7 +169,8 @@ app.get('/', (req, res) => {
       <title>Liten Express - Portal de Envíos</title>
       <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background: #f1f5f9; margin: 0; padding: 20px 14px; color: #1e293b; }
+        /* Se añade padding-bottom de 60px para que la barra flotante no tape el botón de imprimir u otro contenido inferior */
+        body { background: #f1f5f9; margin: 0; padding: 20px 14px 60px 14px; color: #1e293b; }
         .container { max-width: 780px; margin: 0 auto; background: #ffffff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
         
         .logo-container { text-align: center; margin-bottom: 16px; }
@@ -211,6 +212,26 @@ app.get('/', (req, res) => {
         .alerta-cargos ul { margin: 4px 0 0 0; padding-left: 20px; }
         .nota-operativa { font-weight: bold; font-style: italic; }
 
+        /* ========================================================= */
+        /* BARRA FIJA INFERIOR DE SOPORTE TÉCNICO Y NEGOCIO          */
+        /* ========================================================= */
+        .footer-soporte {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: #1e293b; 
+            color: #f1f5f9;
+            text-align: center;
+            padding: 12px 15px;
+            font-size: 13px;
+            font-weight: 500;
+            z-index: 1000;
+            box-shadow: 0 -3px 12px rgba(0,0,0,0.2);
+            border-top: 2px solid #2563eb;
+        }
+        .footer-soporte strong { color: #60a5fa; font-weight: 700; }
+        
         /* Estilos del Recibo (Ocultos en pantalla normal) */
         #reciboLiten { display: none; }
 
@@ -221,6 +242,9 @@ app.get('/', (req, res) => {
           body * { visibility: hidden; } 
           body { background: white; margin: 0; padding: 0; }
           #reciboLiten, #reciboLiten * { visibility: visible; } 
+          
+          /* OCULTAMOS LA BARRA DE SOPORTE AL IMPRIMIR PARA NO MANCHAR EL RECIBO */
+          .footer-soporte { display: none !important; }
           
           #reciboLiten { 
             display: block; 
@@ -502,6 +526,11 @@ app.get('/', (req, res) => {
               <span id="rFirmaNombre"></span>
           </div>
       </div>
+      
+      <!-- BARRA FLOTANTE DE SOPORTE TÉCNICO Y SUCURSAL -->
+      <div class="footer-soporte">
+        <strong>COMERCIO ELECTRÓNICO LITEN</strong> | Atención Sucursal: ${DATOS_NEGOCIO.contacto.replace('Tel y WhatsApp: ', '')} | Soporte Técnico del Sistema: <strong>+52-294-168-0707</strong>
+      </div>
 
       <script>
         const ROL_USUARIO_ACTUAL = '${rolActual}'; 
@@ -515,14 +544,15 @@ app.get('/', (req, res) => {
 
         function obtenerContactoPaqueteria(nombrePaq) {
             const paq = nombrePaq.toUpperCase();
-            if (paq.includes('DHL')) return { tel: '55 5345 7000', web: 'www.dhl.com/mx-es' };
-            if (paq.includes('ESTAFETA')) return { tel: '55 5270 8300', web: 'www.estafeta.com' };
-            if (paq.includes('FEDEX')) return { tel: '55 5228 9904', web: 'www.fedex.com/es-mx' };
-            if (paq.includes('PAQUETEXPRESS')) return { tel: '800 821 0208', web: 'www.paquetexpress.com.mx' };
-            if (paq.includes('TRES GUERRAS') || paq.includes('TRESGUERRAS')) return { tel: '800 710 8352', web: 'www.tresguerras.com.mx' };
-            if (paq.includes('JT') || paq.includes('J&T')) return { tel: '800 953 3333', web: 'www.jtexpress.mx' };
-            if (paq.includes('IMILE')) return { tel: '55 9331 4333', web: 'www.imile.com/mx' };
-            return { tel: 'Consulte portal web oficial', web: 'Buscar nombre en Google' };
+            
+            if (paq.includes('DHL')) return { tel: '55 5345 7000', web: 'https://www.dhl.com/mx-es/home.html' };
+            if (paq.includes('ESTAFETA')) return { tel: '55 5270 8300 o al 800 378 2338', web: 'https://www.estafeta.com/' };
+            if (paq.includes('FEDEX')) return { tel: '55 5228 9904', web: 'https://www.fedex.com/es-mx/home.html' };
+            if (paq.includes('PAQUETEXPRESS')) return { tel: '800 821 0208 (WhatsApp: 6681 680000)', web: 'https://www.paquetexpress.com.mx/' };
+            if (paq.includes('TRES GUERRAS') || paq.includes('TRESGUERRAS')) return { tel: '800 710 8352', web: 'https://www.tresguerras.com.mx/' };
+            
+            // Condición para paqueterías no listadas (Línea en blanco para llenar a mano)
+            return { tel: '.:___________', web: '.:___________' };
         }
 
         function obtenerNotaOperativa(nombrePaq) {
