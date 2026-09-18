@@ -42,7 +42,11 @@ const BASE_DATOS_USUARIOS = {
 
   // SOLO LECTURA COMERCIAL (Solo cotizan + Tarifa Comercial 150%/90%)
   "moball": { pass: "llegodios123", rol: 'solo_lectura', tarifa: 'comercial' },
-  "cotizaya": { pass: "Cotiza2026", rol: 'solo_lectura', tarifa: 'comercial' }
+  "cotizaya": { pass: "Cotiza2026", rol: 'solo_lectura', tarifa: 'comercial' },
+
+  // -------- NUEVOS USUARIOS VIP ($100 FIJOS, SOLO DHL/FEDEX/ESTAFETA) --------
+  "guiasvip": { pass: "@Alan2015*", rol: 'cajero', tarifa: 'vip' },
+  "vipcotizador": { pass: "preferencial", rol: 'solo_lectura', tarifa: 'vip' }
 };
 
 app.use(express.json());
@@ -576,7 +580,7 @@ app.get('/', (req, res) => {
         <div class="footer-centro">
           ${DATOS_NEGOCIO.razon_social} &nbsp;|&nbsp; RFC: ${DATOS_NEGOCIO.rfc}
         </div>
-        <div class="footer-concesiones">
+        <div class="footer-concesiones" style="white-space: nowrap;">
           <strong>Concesiones:</strong> DHL: P-POINT20240625HH2 V2029 | FEDEX: FD20A558602000 V2028 | ESTAFETA: MXES202425AA2566 V2030
         </div>
       </div>
@@ -662,21 +666,33 @@ app.get('/', (req, res) => {
             data.servicios.forEach(s => {
               
               // ==============================================================
-              // LÓGICA DE PRECIOS MATRICIAL (LOCAL VS COMERCIAL)
+              // FILTRO VIP (SOLO DHL, FEDEX, ESTAFETA)
               // ==============================================================
-              const costoTraslado = parseFloat(s.total); 
-              
-              let multiplicadorServicio;
-
-              if (TARIFA_USUARIO_ACTUAL === 'comercial') {
-                  multiplicadorServicio = 1.50; 
-                  if (/DHL/i.test(s.nombre)) multiplicadorServicio = 0.90;
-              } else {
-                  multiplicadorServicio = 1.25; 
-                  if (/DHL/i.test(s.nombre)) multiplicadorServicio = 0.65;
+              if (TARIFA_USUARIO_ACTUAL === 'vip') {
+                 const nombreUpper = s.nombre.toUpperCase();
+                 if (!nombreUpper.includes('DHL') && !nombreUpper.includes('FEDEX') && !nombreUpper.includes('ESTAFETA')) {
+                     return; // Si no es ninguna de estas 3, saltar y no mostrarla
+                 }
               }
 
-              const costoServicio = costoTraslado * multiplicadorServicio; 
+              // ==============================================================
+              // LÓGICA DE PRECIOS MATRICIAL (LOCAL VS COMERCIAL VS VIP)
+              // ==============================================================
+              const costoTraslado = parseFloat(s.total); 
+              let costoServicio = 0;
+
+              if (TARIFA_USUARIO_ACTUAL === 'comercial') {
+                  let multiplicadorServicio = 1.50; 
+                  if (/DHL/i.test(s.nombre)) multiplicadorServicio = 0.90;
+                  costoServicio = costoTraslado * multiplicadorServicio;
+              } else if (TARIFA_USUARIO_ACTUAL === 'vip') {
+                  costoServicio = 100.00; // TARIFA FIJA DE $100
+              } else {
+                  let multiplicadorServicio = 1.25; 
+                  if (/DHL/i.test(s.nombre)) multiplicadorServicio = 0.65;
+                  costoServicio = costoTraslado * multiplicadorServicio;
+              }
+
               const costoTotalMuestra = costoTraslado + costoServicio;     
               
               const notaAdvertencia = obtenerNotaOperativa(s.nombre);
@@ -701,6 +717,24 @@ app.get('/', (req, res) => {
                   botonHTML = \`<div style="color: #991b1b; font-size: 11px; text-align: center; margin-top: 5px; font-weight: bold;">[Botón de Emisión Desactivado]</div>\`;
               }
 
+              // ==============================================================
+              // MOSTRAR U OCULTAR EL DESGLOSE DE PRECIOS PARA VIP COTIZADOR
+              // ==============================================================
+              let htmlDesglosePrecios = '';
+              if (TARIFA_USUARIO_ACTUAL === 'vip' && ROL_USUARIO_ACTUAL === 'solo_lectura') {
+                  // VIP Cotizador: Ocultar desglose, solo mostrar Total final grande
+                  htmlDesglosePrecios = \`
+                    <div class="precio" style="margin-top: 4px; margin-bottom: 10px; font-size: 20px;">Total: $\${costoTotalMuestra.toFixed(2)} MXN</div>
+                  \`;
+              } else {
+                  // Los demás (guiasvip, cajeros y comerciales locales): Mostrar desglose
+                  htmlDesglosePrecios = \`
+                    <div class="rubro-precio">Combustible/Base: <strong>$\${costoTraslado.toFixed(2)}</strong></div>
+                    <div class="rubro-precio">Servicio: <strong>$\${costoServicio.toFixed(2)}</strong></div>
+                    <div class="precio" style="margin-top: 4px; margin-bottom: 10px;">Total: $\${costoTotalMuestra.toFixed(2)} MXN</div>
+                  \`;
+              }
+
               html += \`
                 <div class="card-servicio">
                   <div style="flex: 1;">
@@ -711,9 +745,7 @@ app.get('/', (req, res) => {
                   </div>
                   
                   <div class="desglose-precios">
-                    <div class="rubro-precio">Combustible: <strong>$\${costoTraslado.toFixed(2)}</strong></div>
-                    <div class="rubro-precio">Servicio: <strong>$\${costoServicio.toFixed(2)}</strong></div>
-                    <div class="precio" style="margin-top: 4px; margin-bottom: 10px;">Total: $\${costoTotalMuestra.toFixed(2)} MXN</div>
+                    \${htmlDesglosePrecios}
                     \${botonHTML}
                   </div>
                 </div>
