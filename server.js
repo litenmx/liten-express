@@ -170,8 +170,7 @@ app.get('/', (req, res) => {
       <title>Liten Express - Portal de Envíos</title>
       <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        /* Se añade padding-bottom de 60px para que la barra flotante no tape el botón de imprimir u otro contenido inferior */
-        body { background: #f1f5f9; margin: 0; padding: 20px 14px 60px 14px; color: #1e293b; }
+        body { background: #f1f5f9; margin: 0; padding: 20px 14px 70px 14px; color: #1e293b; }
         .container { max-width: 780px; margin: 0 auto; background: #ffffff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
         
         .logo-container { text-align: center; margin-bottom: 16px; }
@@ -252,6 +251,25 @@ app.get('/', (req, res) => {
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
             70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+
+        /* ========================================================= */
+        /* MEDIA QUERY: AJUSTE RESPONSIVO PARA MÓVILES               */
+        /* ========================================================= */
+        @media (max-width: 768px) {
+            body { padding-bottom: 110px; } /* Más espacio en móvil para que no tape los botones */
+            .footer-soporte {
+                flex-direction: column; /* Apila las 3 secciones una debajo de otra */
+                gap: 6px;
+                padding: 10px;
+            }
+            .footer-soporte > div {
+                white-space: normal !important;
+                text-align: center !important;
+                width: 100%;
+            }
+            .footer-centro { font-size: 10px; letter-spacing: 0; }
+            .footer-concesiones { font-size: 9px; line-height: 1.3; margin-top: 2px; }
         }
         
         /* Estilos del Recibo (Ocultos en pantalla normal) */
@@ -558,7 +576,7 @@ app.get('/', (req, res) => {
         <div class="footer-centro">
           ${DATOS_NEGOCIO.razon_social} &nbsp;|&nbsp; RFC: ${DATOS_NEGOCIO.rfc}
         </div>
-        <div class="footer-concesiones" style="white-space: nowrap;">
+        <div class="footer-concesiones">
           <strong>Concesiones:</strong> DHL: P-POINT20240625HH2 V2029 | FEDEX: FD20A558602000 V2028 | ESTAFETA: MXES202425AA2566 V2030
         </div>
       </div>
