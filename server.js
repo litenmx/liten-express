@@ -213,7 +213,7 @@ app.get('/', (req, res) => {
         .nota-operativa { font-weight: bold; font-style: italic; }
 
         /* ========================================================= */
-        /* BARRA FIJA INFERIOR DE SOPORTE TÉCNICO Y NEGOCIO          */
+        /* BARRA FIJA INFERIOR DE SOPORTE Y CONCESIONES              */
         /* ========================================================= */
         .footer-soporte {
             position: fixed;
@@ -222,21 +222,40 @@ app.get('/', (req, res) => {
             width: 100%;
             background: #1e293b; 
             color: #f1f5f9;
-            text-align: center;
-            padding: 12px 15px;
-            font-size: 13px;
-            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            font-size: 12px;
             z-index: 1000;
             box-shadow: 0 -3px 12px rgba(0,0,0,0.2);
             border-top: 2px solid #2563eb;
         }
         .footer-soporte strong { color: #60a5fa; font-weight: 700; }
+        .footer-concesiones { color: #94a3b8; font-size: 11px; text-align: right; }
+
+        /* Animación del Punto Verde */
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            margin-right: 6px;
+            box-shadow: 0 0 8px #22c55e;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
         
         /* Estilos del Recibo (Ocultos en pantalla normal) */
         #reciboLiten { display: none; }
 
         /* ========================================================= */
-        /* NUEVO FORMATO DE IMPRESIÓN (TAMAÑO CARTA / A4 - CARETA)   */
+        /* FORMATO DE IMPRESIÓN (TAMAÑO CARTA / A4 - CARETA)         */
         /* ========================================================= */
         @media print {
           body * { visibility: hidden; } 
@@ -527,9 +546,15 @@ app.get('/', (req, res) => {
           </div>
       </div>
       
-      <!-- BARRA FLOTANTE DE SOPORTE TÉCNICO Y SUCURSAL -->
+      <!-- BARRA FLOTANTE CON INDICADOR DE CONEXIÓN Y CONCESIONES -->
       <div class="footer-soporte">
-        <strong>COMERCIO ELECTRÓNICO LITEN</strong> | Atención Sucursal: ${DATOS_NEGOCIO.contacto.replace('Tel y WhatsApp: ', '')} | Soporte Técnico del Sistema: <strong>+52-294-168-0707</strong>
+        <div>
+          <span class="status-dot"></span><span style="color: #4ade80; font-weight: bold; margin-right: 15px;">Conectado</span>
+          Soporte: <strong>+52-294-168-0707</strong>
+        </div>
+        <div class="footer-concesiones">
+          <strong>Concesiones:</strong> DHL: P-POINT20240625HH2 V2029 | FEDEX: FD20A558602000 V2028 | ESTAFETA: MXES202425AA2566 V2030
+        </div>
       </div>
 
       <script>
