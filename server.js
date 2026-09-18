@@ -10,7 +10,8 @@ const BASE_URL = 'https://guias-api.enviafacil.shop/api/v1';
 // DATOS LEGALES Y SUCURSAL LITEN EXPRESS
 // ---------------------------------------------------------
 const DATOS_NEGOCIO = {
-  razon_social: "COMERCIO ELECTRÓNICO LITEN",
+  razon_social: "COMERCIO ELECTRÓNICO LITEN SA DE CV",
+  rfc: "CEL-040929-AH4",
   marca: "Liten Express Paquetería",
   calle_numero: "Constituyentes 3170",
   referencia: "(Entre F. Canal y E. Morales)",
@@ -95,7 +96,7 @@ app.get('/login', (req, res) => {
         <body>
             <div class="login-card">
                 <img src="/logo.png" style="max-height: 90px; margin-bottom: 10px;" alt="Liten Express" onerror="this.style.display='none'">
-                <h2>${DATOS_NEGOCIO.razon_social}</h2>
+                <h2>COMERCIO ELECTRÓNICO LITEN</h2>
                 <p>Acceso al Portal de Operaciones</p>
                 <form action="/login" method="POST">
                     <input type="text" name="usuario" placeholder="Usuario" required autocomplete="off">
@@ -213,7 +214,7 @@ app.get('/', (req, res) => {
         .nota-operativa { font-weight: bold; font-style: italic; }
 
         /* ========================================================= */
-        /* BARRA FIJA INFERIOR DE SOPORTE Y CONCESIONES              */
+        /* BARRA FIJA INFERIOR DE SOPORTE Y CONCESIONES (3 COLUMNAS) */
         /* ========================================================= */
         .footer-soporte {
             position: fixed;
@@ -225,14 +226,16 @@ app.get('/', (req, res) => {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 20px;
-            font-size: 12px;
+            padding: 10px 15px;
+            font-size: 11px;
             z-index: 1000;
             box-shadow: 0 -3px 12px rgba(0,0,0,0.2);
             border-top: 2px solid #2563eb;
+            gap: 15px;
         }
         .footer-soporte strong { color: #60a5fa; font-weight: 700; }
-        .footer-concesiones { color: #94a3b8; font-size: 11px; text-align: right; }
+        .footer-concesiones { color: #94a3b8; font-size: 10px; text-align: right; }
+        .footer-centro { flex: 1; text-align: center; color: #cbd5e1; font-weight: bold; font-size: 11px; letter-spacing: 0.5px; }
 
         /* Animación del Punto Verde */
         .status-dot {
@@ -546,13 +549,16 @@ app.get('/', (req, res) => {
           </div>
       </div>
       
-      <!-- BARRA FLOTANTE CON INDICADOR DE CONEXIÓN Y CONCESIONES -->
+      <!-- BARRA FLOTANTE CON INDICADOR, DATOS FISCALES Y CONCESIONES (3 COLUMNAS) -->
       <div class="footer-soporte">
-        <div>
-          <span class="status-dot"></span><span style="color: #4ade80; font-weight: bold; margin-right: 15px;">Conectado</span>
+        <div style="white-space: nowrap;">
+          <span class="status-dot"></span><span style="color: #4ade80; font-weight: bold; margin-right: 12px;">Conectado</span>
           Soporte: <strong>+52-294-168-0707</strong>
         </div>
-        <div class="footer-concesiones">
+        <div class="footer-centro">
+          ${DATOS_NEGOCIO.razon_social} &nbsp;|&nbsp; RFC: ${DATOS_NEGOCIO.rfc}
+        </div>
+        <div class="footer-concesiones" style="white-space: nowrap;">
           <strong>Concesiones:</strong> DHL: P-POINT20240625HH2 V2029 | FEDEX: FD20A558602000 V2028 | ESTAFETA: MXES202425AA2566 V2030
         </div>
       </div>
