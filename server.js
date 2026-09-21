@@ -33,6 +33,7 @@ const BASE_DATOS_USUARIOS = {
   "caja1": { pass: "@Liten123*", rol: 'cajero', tarifa: 'local' },
   "caja2": { pass: "@Liten123*", rol: 'cajero', tarifa: 'local' },
   "joseluis": { pass: "Pablito1122", rol: 'cajero', tarifa: 'local' },
+  "ocurresucursal": { pass: "Liten123*", rol: 'cajero', tarifa: 'local' }, // NUEVO USUARIO SUCURSAL
 
   // SOLO LECTURA LOCAL (Solo cotizan + Tarifa Local 125%/65%)
   "cotizador": { pass: "cotiza", rol: 'solo_lectura', tarifa: 'local' },
@@ -165,6 +166,15 @@ app.get('/', (req, res) => {
   const rolActual = req.rolLiten;
   const tarifaActual = req.tarifaLiten;
 
+  // Lógica para pre-cargar datos si el usuario es "ocurresucursal"
+  const isOcurre = (usuarioActual === 'ocurresucursal');
+  const defCpOrigen = isOcurre ? '91700' : '91698';
+  const defColOrigen = isOcurre ? 'CENTRO' : 'hacienda sotavento';
+  const defCalleOrigen = isOcurre ? 'Constituyentes 3170' : '';
+  const defCiudadOrigen = isOcurre ? 'Veracruz' : '';
+  const defEstadoOrigen = isOcurre ? 'Veracruz' : '';
+  const defTelOrigen = isOcurre ? '2291234567' : '';
+
   res.send(`
     <!DOCTYPE html>
     <html lang="es">
@@ -215,6 +225,9 @@ app.get('/', (req, res) => {
         .alerta-cargos { background: #fef08a; color: #854d0e; padding: 8px 10px; border-radius: 6px; font-size: 11px; margin-top: 8px; border: 1px solid #fde047; }
         .alerta-cargos ul { margin: 4px 0 0 0; padding-left: 20px; }
         .nota-operativa { font-weight: bold; font-style: italic; }
+
+        /* Alerta VIP Fija */
+        #alertaVipCajero { display: none; background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-bottom: 14px; text-align: center; }
 
         /* ========================================================= */
         /* BARRA FIJA INFERIOR DE SOPORTE Y CONCESIONES (3 COLUMNAS) */
@@ -359,11 +372,11 @@ app.get('/', (req, res) => {
           <div class="form-grid">
             <div>
               <label>C.P. Origen</label>
-              <input type="text" id="cpOrigen" required maxlength="5" value="91698">
+              <input type="text" id="cpOrigen" required maxlength="5" value="${defCpOrigen}">
             </div>
             <div>
               <label>Colonia Origen</label>
-              <input type="text" id="coloniaOrigen" required value="hacienda sotavento">
+              <input type="text" id="coloniaOrigen" required value="${defColOrigen}">
             </div>
             <div>
               <label>C.P. Destino</label>
@@ -428,19 +441,19 @@ app.get('/', (req, res) => {
 
               <div>
                 <label>Calle y Número</label>
-                <input type="text" id="remCalle" required placeholder="Av. Principal 123">
+                <input type="text" id="remCalle" required placeholder="Av. Principal 123" value="${defCalleOrigen}">
               </div>
               <div>
                 <label>Ciudad</label>
-                <input type="text" id="remCiudad" required placeholder="Ej. Veracruz">
+                <input type="text" id="remCiudad" required placeholder="Ej. Veracruz" value="${defCiudadOrigen}">
               </div>
               <div>
                 <label>Estado (Código o Nombre)</label>
-                <input type="text" id="remEstado" required placeholder="Ej. VER">
+                <input type="text" id="remEstado" required placeholder="Ej. VER" value="${defEstadoOrigen}">
               </div>
               <div>
                 <label>Teléfono (10 dígitos)</label>
-                <input type="tel" id="remTelefono" required pattern="[0-9]{10}" placeholder="2291234567">
+                <input type="tel" id="remTelefono" required pattern="[0-9]{10}" placeholder="2291234567" value="${defTelOrigen}">
               </div>
             </div>
 
@@ -474,6 +487,11 @@ app.get('/', (req, res) => {
                 <label>Contenido del paquete</label>
                 <input type="text" id="paqContenido" required placeholder="Ej. Ropa, Calzado, Artículos varios">
               </div>
+            </div>
+
+            <!-- ALERTA EXCLUSIVA VIP PARA PREVENIR ERRORES DE MEDICIÓN -->
+            <div id="alertaVipCajero">
+               🚨 ATENCIÓN CAJERO: Asegúrese de haber MEDIDO con cinta y PESADO en báscula el paquete físicamente delante del cliente ANTES de generar esta guía.
             </div>
 
             <button type="submit" id="btnGenerarGuia" class="btn-primary" style="background: #16a34a; margin-top: 10px;">
@@ -588,6 +606,11 @@ app.get('/', (req, res) => {
       <script>
         const ROL_USUARIO_ACTUAL = '${rolActual}'; 
         const TARIFA_USUARIO_ACTUAL = '${tarifaActual}'; 
+
+        // Mostrar alerta visual si es cajero VIP
+        if (TARIFA_USUARIO_ACTUAL === 'vip' && ROL_USUARIO_ACTUAL === 'cajero') {
+            document.getElementById('alertaVipCajero').style.display = 'block';
+        }
 
         let cotizacionActual = null;
         let servicioSeleccionado = null;
@@ -776,7 +799,14 @@ app.get('/', (req, res) => {
         document.getElementById('emisionForm').addEventListener('submit', async (e) => {
           e.preventDefault();
 
-          if (!confirm("⚠️ ATENCIÓN: ANTES DE GENERAR LA GUÍA\\n\\n1. Verifica que el C.P. y la dirección sean correctos.\\n2. Confirma que YA HAS COBRADO el importe total.\\n\\n¿Estás seguro de emitir la guía oficial? (Se descontará saldo)")) return;
+          // Modificación en el mensaje de alerta para cajeros VIP
+          let alertaGeneracion = "⚠️ ATENCIÓN: ANTES DE GENERAR LA GUÍA\\n\\n1. Verifica que el C.P. y la dirección sean correctos.\\n2. Confirma que YA HAS COBRADO el importe total.\\n\\n¿Estás seguro de emitir la guía oficial? (Se descontará saldo)";
+
+          if (TARIFA_USUARIO_ACTUAL === 'vip') {
+              alertaGeneracion = "🚨 REVISIÓN OBLIGATORIA VIP 🚨\\n\\n¿Ya mediste el paquete con cinta y lo pesaste físicamente en báscula delante de tu cliente?\\n\\n" + alertaGeneracion;
+          }
+
+          if (!confirm(alertaGeneracion)) return;
 
           const btn = document.getElementById('btnGenerarGuia');
           const resFinal = document.getElementById('resultadoFinal');
