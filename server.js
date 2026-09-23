@@ -1005,9 +1005,9 @@ app.post('/api/guias', async (req, res) => {
         const respPdf = await fetch(data.urlGuia);
         const arrayBuf = await respPdf.arrayBuffer();
         const buffer = Buffer.from(arrayBuf);
-        const subida = await subirBufferADrive(`GUIA_\${data.trackingCode}_\${data.paqueteria || 'ENVIO'}.pdf`, buffer);
+        const subida = await subirBufferADrive(`GUIA_${data.trackingCode}_${data.paqueteria || 'ENVIO'}.pdf`, buffer);
         if (subida) {
-          guiaDriveLink = subida.webViewLink || \`https://drive.google.com/file/d/\${subida.id}/view\`;
+          guiaDriveLink = subida.webViewLink || `https://drive.google.com/file/d/${subida.id}/view`;
           console.log('✅ Guía oficial guardada en Drive:', subida.name);
         }
       } catch (errDrive) {
@@ -1044,11 +1044,11 @@ app.post('/api/subir-recibo', async (req, res) => {
     // Si viene el archivo del recibo en base64, se decodifica y sube a Drive
     if (reciboBase64) {
       try {
-        const base64Data = reciboBase64.replace(/^data:application\\/pdf;filename=[^;]+;base64,/, '').replace(/^data:application\\/pdf;base64,/, '');
+        const base64Data = reciboBase64.replace(/^data:application\/pdf;filename=[^;]+;base64,/, '').replace(/^data:application\/pdf;base64,/, '');
         const bufferRecibo = Buffer.from(base64Data, 'base64');
-        const subidaRecibo = await subirBufferADrive(`RECIBO_\${trackingCode}_\${remitente || 'CLIENTE'}.pdf`, bufferRecibo);
+        const subidaRecibo = await subirBufferADrive(`RECIBO_${trackingCode}_${remitente || 'CLIENTE'}.pdf`, bufferRecibo);
         if (subidaRecibo) {
-          reciboDriveLink = subidaRecibo.webViewLink || \`https://drive.google.com/file/d/\${subidaRecibo.id}/view\`;
+          reciboDriveLink = subidaRecibo.webViewLink || `https://drive.google.com/file/d/${subidaRecibo.id}/view`;
           console.log('✅ Recibo formal membretado guardado en Drive:', subidaRecibo.name);
         }
       } catch (errRecibo) {
@@ -1058,11 +1058,11 @@ app.post('/api/subir-recibo', async (req, res) => {
 
     // Fórmulas de hipervínculo clickeables (Columna J: Guía, Columna K: Recibo)
     const formulaGuia = guiaDriveLink 
-      ? \`=HYPERLINK("\${guiaDriveLink}", "Ver Guía")\` 
+      ? `=HYPERLINK("${guiaDriveLink}", "Ver Guía")` 
       : 'No disponible';
 
     const formulaRecibo = reciboDriveLink 
-      ? \`=HYPERLINK("\${reciboDriveLink}", "Ver Recibo")\` 
+      ? `=HYPERLINK("${reciboDriveLink}", "Ver Recibo")` 
       : 'No disponible';
 
     // Insertar la venta en Google Sheets en la pestaña Sheet1 (Rango A:K)
@@ -1076,7 +1076,7 @@ app.post('/api/subir-recibo', async (req, res) => {
       destinatario || '',                                                 // F: Destinatario
       cpDestino || '',                                                    // G: C.P. Destino
       peso || '',                                                         // H: Peso (kg)
-      totalCobrado ? \`$\${parseFloat(totalCobrado).toFixed(2)} MXN\` : '',  // I: Total Cobrado
+      totalCobrado ? `$${parseFloat(totalCobrado).toFixed(2)} MXN` : '',  // I: Total Cobrado
       formulaGuia,                                                        // J: Enlace Drive (Guía)
       formulaRecibo                                                       // K: Enlace Recibo
     ];
