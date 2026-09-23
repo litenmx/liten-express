@@ -21,7 +21,6 @@ const KEY_PATH = fs.existsSync('/etc/secrets/google-key.json')
   ? '/etc/secrets/google-key.json'
   : path.join(__dirname, 'google-key.json');
 
-// Autenticación con permisos para Google Sheets y Google Drive
 const authGoogle = new google.auth.GoogleAuth({
   keyFile: KEY_PATH,
   scopes: [
@@ -33,7 +32,6 @@ const authGoogle = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth: authGoogle });
 const drive = google.drive({ version: 'v3', auth: authGoogle });
 
-// Función para subir archivos en memoria (Buffer) a Google Drive
 async function subirBufferADrive(nombreArchivo, buffer, mimeType = 'application/pdf') {
   try {
     const response = await drive.files.create({
@@ -67,14 +65,10 @@ const DATOS_NEGOCIO = {
   contacto: "Tel y WhatsApp: 229-667-6770"
 };
 
-// ---------------------------------------------------------
-// BASE DE DATOS DE USUARIOS, ROLES Y TARIFAS LITEN EXPRESS
-// ---------------------------------------------------------
 const adminUser = process.env.APP_USER || 'admin';
 const adminPass = process.env.APP_PASSWORD || 'Liten2026*';
 
 const BASE_DATOS_USUARIOS = {
-  // CAJEROS LOCALES (Generan guías + Tarifa Local 125%/65%)
   [adminUser]: { pass: adminPass, rol: 'cajero', tarifa: 'local' },
   "deyanira": { pass: "@Alan2015*", rol: 'cajero', tarifa: 'local' },
   "Jorge": { pass: "@Alan2015*", rol: 'cajero', tarifa: 'local' },
@@ -82,23 +76,14 @@ const BASE_DATOS_USUARIOS = {
   "caja2": { pass: "@Liten123*", rol: 'cajero', tarifa: 'local' },
   "joseluis": { pass: "Pablito1122", rol: 'cajero', tarifa: 'local' },
   "ocurresucursal": { pass: "Liten123*", rol: 'cajero', tarifa: 'local' },
-
-  // SOLO LECTURA LOCAL (Solo cotizan + Tarifa Local 125%/65%)
   "cotizador": { pass: "cotiza", rol: 'solo_lectura', tarifa: 'local' },
-
-  // CAJERO COMERCIAL (Generan guías + Tarifa Comercial 150%/90%)
   "guiascomerciales": { pass: "@Alan2015*", rol: 'cajero', tarifa: 'comercial' },
-
-  // SOLO LECTURA COMERCIAL (Solo cotizan + Tarifa Comercial 150%/90%)
   "moball": { pass: "llegodios123", rol: 'solo_lectura', tarifa: 'comercial' },
   "cotizaya": { pass: "Cotiza2026", rol: 'solo_lectura', tarifa: 'comercial' },
-
-  // USUARIOS VIP ($100 FIJOS, SOLO DHL/FEDEX/ESTAFETA)
   "guiasvip": { pass: "@Alan2015*", rol: 'cajero', tarifa: 'vip' },
   "vipcotizador": { pass: "preferencial", rol: 'solo_lectura', tarifa: 'vip' }
 };
 
-// Se amplía el límite para recibir el PDF del recibo en Base64
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.static(__dirname));
@@ -120,9 +105,6 @@ function parseCookies(request) {
   return list;
 }
 
-// ==========================================
-// SISTEMA DE SESIÓN WEB (LOGIN FORMULARIO)
-// ==========================================
 app.get('/login', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -216,7 +198,6 @@ app.get('/', (req, res) => {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Liten Express - Portal de Envíos</title>
-      <!-- Librería html2pdf para generar el PDF del recibo oficial -->
       <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
       <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -264,7 +245,6 @@ app.get('/', (req, res) => {
 
         #alertaVipCajero { display: none; background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-bottom: 14px; text-align: center; }
 
-        /* BARRA INFERIOR DE SOPORTE Y CONCESIONES */
         .footer-soporte {
           position: fixed;
           bottom: 0;
@@ -320,7 +300,6 @@ app.get('/', (req, res) => {
         
         #reciboLiten { display: none; }
 
-        /* FORMATO DE IMPRESIÓN (TAMAÑO CARTA - CARETA OFICIAL) */
         @media print {
           body * { visibility: hidden; } 
           body { background: white; margin: 0; padding: 0; }
@@ -382,6 +361,38 @@ app.get('/', (req, res) => {
             <span class="badge-seguridad">🔒 Entorno Real Activo</span><br><br>
             <a href="/logout" class="btn-logout">Cerrar Sesión</a>
           </div>
+        </div>
+
+        <!-- BOTÓN DE HISTORIAL (SOLO VISIBLE PARA CAJEROS) -->
+        ${rolActual === 'cajero' ? `
+          <button onclick="cargarHistorial()" class="btn-primary" style="background: #475569; margin-bottom: 20px; padding: 10px; display: block;">
+            📂 Consultar Historial de Guías y Recibos
+          </button>
+        ` : ''}
+
+        <!-- MODAL / SECCIÓN DE HISTORIAL -->
+        <div id="seccionHistorial" style="display: none; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 20px;">
+           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+             <h3 style="margin: 0; color: #1e40af; font-size: 16px;">Últimos 50 Envíos Registrados</h3>
+             <button onclick="document.getElementById('seccionHistorial').style.display='none'" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-weight: bold;">Cerrar ❌</button>
+           </div>
+           <div style="overflow-x: auto;">
+             <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; background: white;">
+               <thead style="background: #e2e8f0; border-bottom: 2px solid #cbd5e1;">
+                 <tr>
+                   <th style="padding: 10px;">Fecha</th>
+                   <th style="padding: 10px;">Cajero</th>
+                   <th style="padding: 10px;">Paquetería</th>
+                   <th style="padding: 10px;">Rastreo</th>
+                   <th style="padding: 10px;">Destinatario</th>
+                   <th style="padding: 10px; text-align: center;">Archivos en Drive</th>
+                 </tr>
+               </thead>
+               <tbody id="tablaHistorial">
+                 <tr><td colspan="6" style="text-align: center; padding: 15px;">Consultando a la base de datos... ⏳</td></tr>
+               </tbody>
+             </table>
+           </div>
         </div>
 
         <!-- PASO 1: COTIZACIÓN -->
@@ -627,6 +638,48 @@ app.get('/', (req, res) => {
         let totalCobradoSeleccionado = 0;
         let pesoFacturadoSeleccionado = 0;
 
+        // FUNCIÓN PARA CONSULTAR Y RENDERIZAR EL HISTORIAL
+        async function cargarHistorial() {
+          const seccion = document.getElementById('seccionHistorial');
+          const tbody = document.getElementById('tablaHistorial');
+          
+          if (seccion.style.display === 'block') {
+             seccion.style.display = 'none';
+             return;
+          }
+          
+          seccion.style.display = 'block';
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 15px;">Consultando a la base de datos... ⏳</td></tr>';
+          
+          try {
+            const response = await fetch('/api/historial');
+            if (!response.ok) throw new Error('No autorizado o error del servidor');
+            
+            const data = await response.json();
+            
+            if (data.length === 0) {
+               tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 15px;">No hay envíos registrados aún.</td></tr>';
+               return;
+            }
+            
+            tbody.innerHTML = data.map(envio => \`
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 10px;">\${envio.fecha}</td>
+                <td style="padding: 10px; font-weight: bold; color: #475569;">\${envio.cajero}</td>
+                <td style="padding: 10px;">\${envio.paqueteria}</td>
+                <td style="padding: 10px; color: #2563eb; font-family: monospace;">\${envio.rastreo}</td>
+                <td style="padding: 10px;">\${envio.destinatario}</td>
+                <td style="padding: 10px; text-align: center; white-space: nowrap;">
+                  \${envio.guiaUrl ? \`<a href="\${envio.guiaUrl}" target="_blank" style="background: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; margin-right: 4px;">📄 Guía</a>\` : '<span style="color:#94a3b8; font-size: 10px;">Sin Guía</span>'}
+                  \${envio.reciboUrl ? \`<a href="\${envio.reciboUrl}" target="_blank" style="background: #10b981; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none;">🧾 Recibo</a>\` : '<span style="color:#94a3b8; font-size: 10px;">Sin Recibo</span>'}
+                </td>
+              </tr>
+            \`).join('');
+          } catch (error) {
+            tbody.innerHTML = \`<tr><td colspan="6" style="text-align: center; padding: 15px; color: #ef4444; font-weight: bold;">Error: \${error.message}</td></tr>\`;
+          }
+        }
+
         function obtenerContactoPaqueteria(nombrePaq) {
             const paq = nombrePaq.toUpperCase();
             if (paq.includes('DHL')) return { tel: '55 5345 7000', web: 'https://www.dhl.com/mx-es/home.html' };
@@ -847,7 +900,6 @@ app.get('/', (req, res) => {
               throw new Error(msg);
             }
 
-            // LLENAR DATOS EN EL RECIBO FORMAL
             const paqueteriaFinal = data.paqueteria || nombrePaqueteriaSeleccionada;
             const datosContacto = obtenerContactoPaqueteria(paqueteriaFinal);
 
@@ -888,7 +940,6 @@ app.get('/', (req, res) => {
               </div>
             \`;
 
-            // GENERAR RECIBO EN PDF Y RESPALDAR TODO EN GOOGLE DRIVE Y SHEETS
             try {
               let reciboBase64 = '';
               const reciboElemento = document.getElementById('reciboLiten');
@@ -955,7 +1006,6 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Endpoint seguro Cotizar 
 app.post('/api/cotizar', async (req, res) => {
   const apiKey = process.env.ENVIAFACIL_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Falta ENVIAFACIL_API_KEY' });
@@ -973,10 +1023,9 @@ app.post('/api/cotizar', async (req, res) => {
   }
 });
 
-// Endpoint seguro Generar Guía + Descarga y Respaldo automático de la Guía a Drive
 app.post('/api/guias', async (req, res) => {
   if (req.rolLiten !== 'cajero') {
-    return res.status(403).json({ error: 'Operación denegada. Este usuario solo tiene permisos para cotizar, no para gastar saldo.' });
+    return res.status(403).json({ error: 'Operación denegada. Este usuario solo tiene permisos para cotizar.' });
   }
 
   const apiKey = process.env.ENVIAFACIL_API_KEY;
@@ -998,7 +1047,6 @@ app.post('/api/guias', async (req, res) => {
       return res.status(apiRes.status).json(data);
     }
 
-    // Si la guía se emitió y devolvió URL de PDF, se descarga y respalda en Drive
     let guiaDriveLink = '';
     if (data.urlGuia) {
       try {
@@ -1008,7 +1056,6 @@ app.post('/api/guias', async (req, res) => {
         const subida = await subirBufferADrive(`GUIA_${data.trackingCode}_${data.paqueteria || 'ENVIO'}.pdf`, buffer);
         if (subida) {
           guiaDriveLink = subida.webViewLink || `https://drive.google.com/file/d/${subida.id}/view`;
-          console.log('✅ Guía oficial guardada en Drive:', subida.name);
         }
       } catch (errDrive) {
         console.error('Error respaldando guía en Drive:', errDrive.message);
@@ -1024,24 +1071,15 @@ app.post('/api/guias', async (req, res) => {
   }
 });
 
-// Endpoint para recibir el Recibo membretado, subirlo a Drive y guardar la fila en Google Sheets
 app.post('/api/subir-recibo', async (req, res) => {
   try {
     const {
-      trackingCode,
-      paqueteria,
-      remitente,
-      destinatario,
-      cpDestino,
-      peso,
-      totalCobrado,
-      guiaDriveLink,
-      reciboBase64
+      trackingCode, paqueteria, remitente, destinatario,
+      cpDestino, peso, totalCobrado, guiaDriveLink, reciboBase64
     } = req.body;
 
     let reciboDriveLink = '';
 
-    // Si viene el archivo del recibo en base64, se decodifica y sube a Drive
     if (reciboBase64) {
       try {
         const base64Data = reciboBase64.replace(/^data:application\/pdf;filename=[^;]+;base64,/, '').replace(/^data:application\/pdf;base64,/, '');
@@ -1049,36 +1087,21 @@ app.post('/api/subir-recibo', async (req, res) => {
         const subidaRecibo = await subirBufferADrive(`RECIBO_${trackingCode}_${remitente || 'CLIENTE'}.pdf`, bufferRecibo);
         if (subidaRecibo) {
           reciboDriveLink = subidaRecibo.webViewLink || `https://drive.google.com/file/d/${subidaRecibo.id}/view`;
-          console.log('✅ Recibo formal membretado guardado en Drive:', subidaRecibo.name);
         }
       } catch (errRecibo) {
         console.error('Error subiendo recibo a Drive:', errRecibo.message);
       }
     }
 
-    // Fórmulas de hipervínculo clickeables (Columna J: Guía, Columna K: Recibo)
-    const formulaGuia = guiaDriveLink 
-      ? `=HYPERLINK("${guiaDriveLink}", "Ver Guía")` 
-      : 'No disponible';
+    const formulaGuia = guiaDriveLink ? `=HYPERLINK("${guiaDriveLink}", "Ver Guía")` : 'No disponible';
+    const formulaRecibo = reciboDriveLink ? `=HYPERLINK("${reciboDriveLink}", "Ver Recibo")` : 'No disponible';
 
-    const formulaRecibo = reciboDriveLink 
-      ? `=HYPERLINK("${reciboDriveLink}", "Ver Recibo")` 
-      : 'No disponible';
-
-    // Insertar la venta en Google Sheets en la pestaña Sheet1 (Rango A:K)
     const ahora = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
     const fila = [
-      ahora,                                                              // A: Fecha
-      req.usuarioLiten || 'Cajero',                                       // B: Cajero
-      paqueteria || 'Desconocida',                                        // C: Paquetería
-      trackingCode || 'S/N',                                              // D: Rastreo
-      remitente || '',                                                    // E: Remitente
-      destinatario || '',                                                 // F: Destinatario
-      cpDestino || '',                                                    // G: C.P. Destino
-      peso || '',                                                         // H: Peso (kg)
-      totalCobrado ? `$${parseFloat(totalCobrado).toFixed(2)} MXN` : '',  // I: Total Cobrado
-      formulaGuia,                                                        // J: Enlace Drive (Guía)
-      formulaRecibo                                                       // K: Enlace Recibo
+      ahora, req.usuarioLiten || 'Cajero', paqueteria || 'Desconocida',
+      trackingCode || 'S/N', remitente || '', destinatario || '',
+      cpDestino || '', peso || '', totalCobrado ? `$${parseFloat(totalCobrado).toFixed(2)} MXN` : '',
+      formulaGuia, formulaRecibo
     ];
 
     await sheets.spreadsheets.values.append({
@@ -1088,12 +1111,50 @@ app.post('/api/subir-recibo', async (req, res) => {
       requestBody: { values: [fila] }
     });
 
-    console.log('✅ Registro insertado exitosamente en Google Sheets (A:K).');
     return res.json({ ok: true, guiaDriveLink, reciboDriveLink });
   } catch (error) {
-    console.error('Error registrando venta o recibo:', error.message);
     return res.status(500).json({ error: error.message });
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo con Google Drive, Sheets y Sesiones.'));
+// ==========================================
+// NUEVO ENDPOINT PARA CONSULTAR EL HISTORIAL DE SHEETS
+// ==========================================
+app.get('/api/historial', async (req, res) => {
+  if (req.rolLiten !== 'cajero') {
+    return res.status(403).json({ error: 'Acceso denegado. Solo cajeros pueden ver el historial de envíos.' });
+  }
+
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sheet1!A:K',
+      valueRenderOption: 'FORMULA' 
+    });
+
+    const rows = response.data.values || [];
+    if (rows.length <= 1) return res.json([]); 
+
+    const extractUrl = (cell) => {
+      if (!cell) return null;
+      const match = cell.match(/HYPERLINK\("([^"]+)"/i);
+      return match ? match[1] : (cell.toString().startsWith('http') ? cell : null);
+    };
+
+    const historial = rows.slice(1).reverse().map(row => ({
+      fecha: row[0] || '',
+      cajero: row[1] || '',
+      paqueteria: row[2] || '',
+      rastreo: row[3] || '',
+      destinatario: row[5] || '',
+      guiaUrl: extractUrl(row[9]),
+      reciboUrl: extractUrl(row[10])
+    }));
+
+    return res.json(historial.slice(0, 50)); 
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.listen(PORT, () => console.log('Liten Express operativo con Historial de Envíos.'));
