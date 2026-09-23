@@ -58,8 +58,8 @@ async function subirBufferADrive(nombreArchivo, buffer, mimeType = 'application/
 // DATOS LEGALES Y SUCURSAL LITEN EXPRESS
 // ---------------------------------------------------------
 const DATOS_NEGOCIO = {
-  razon_social: "COMERCIO ELECTRÓNICO LITEN SA DE CV",
-  rfc: "CEL-040929-AH4",
+  razon_social: "COMERCIO ELECTRÓNICO LITEN",
+  rfc: "XAXX010101000",
   marca: "Liten Express Paquetería",
   calle_numero: "Constituyentes 3170",
   referencia: "(Entre F. Canal y E. Morales)",
