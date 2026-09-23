@@ -718,55 +718,52 @@ app.get('/', (req, res) => {
               const costoTotalMuestra = costoTraslado + costoServicio;     
               const notaAdvertencia = obtenerNotaOperativa(s.nombre);
 
-              let htmlCargosExtras = \`<div class="alerta-cargos"><span class="nota-operativa">⚠️ \${notaAdvertencia}</span>\`;
+              let htmlCargosExtras = `<div class="alerta-cargos"><span class="nota-operativa">⚠️ ${notaAdvertencia}</span>`;
               if (s.cargosAplicados && s.cargosAplicados.length > 0) {
-                  htmlCargosExtras += \`<ul>\`;
+                  htmlCargosExtras += `<ul>`;
                   s.cargosAplicados.forEach(cargo => {
-                      htmlCargosExtras += \`<li>\${cargo.concepto}: $\${cargo.monto.toFixed(2)}</li>\`;
+                      htmlCargosExtras += `<li>${cargo.concepto}:$${cargo.monto.toFixed(2)}</li>`;
                   });
-                  htmlCargosExtras += \`</ul>\`;
+                  htmlCargosExtras += `</ul>`;
               }
-              htmlCargosExtras += \`</div>\`;
+              htmlCargosExtras += `</div>`;
 
               let botonHTML = '';
               if (ROL_USUARIO_ACTUAL === 'cajero') {
-                  botonHTML = \`<button type="button" class="btn-success" style="width: 100%; padding: 10px;" onclick="seleccionarServicio(\${s.idservicio}, '\${s.nombre}', \${costoTotalMuestra}, \${s.kg})">Seleccionar</button>\`;
+                  botonHTML = `<button type="button" class="btn-success" style="width: 100%; padding: 10px;" onclick="seleccionarServicio(${s.idservicio}, '${s.nombre}', ${costoTotalMuestra},${s.kg})">Seleccionar</button>`;
               } else {
-                  botonHTML = \`<div style="color: #991b1b; font-size: 11px; text-align: center; margin-top: 5px; font-weight: bold;">[Botón de Emisión Desactivado]</div>\`;
+                  botonHTML = `<div style="color: #991b1b; font-size: 11px; text-align: center; margin-top: 5px; font-weight: bold;">[Botón de Emisión Desactivado]</div>`;
               }
 
               let htmlDesglosePrecios = '';
               if (TARIFA_USUARIO_ACTUAL === 'vip' && ROL_USUARIO_ACTUAL === 'solo_lectura') {
-                  htmlDesglosePrecios = \`
-                    <div class="precio" style="margin-top: 4px; margin-bottom: 10px; font-size: 20px;">Total: $\${costoTotalMuestra.toFixed(2)} MXN</div>
-                  \`;
+                  htmlDesglosePrecios = `
+                    <div class="precio" style="margin-top: 4px; margin-bottom: 10px; font-size: 20px;">Total: $${costoTotalMuestra.toFixed(2)} MXN</div>
+                  `;
               } else {
-                  htmlDesglosePrecios = \`
-                    <div class="rubro-precio">Combustible/Base: <strong>$\${costoTraslado.toFixed(2)}</strong></div>
-                    <div class="rubro-precio">Servicio: <strong>$\${costoServicio.toFixed(2)}</strong></div>
-                    <div class="precio" style="margin-top: 4px; margin-bottom: 10px;">Total: $\${costoTotalMuestra.toFixed(2)} MXN</div>
-                  \`;
+                  htmlDesglosePrecios = `
+                    <div class="rubro-precio">Combustible/Base: <strong>$${costoTraslado.toFixed(2)}</strong></div>
+                    <div class="rubro-precio">Servicio: <strong>$${costoServicio.toFixed(2)}</strong></div>                     <div class="precio" style="margin-top: 4px; margin-bottom: 10px;">Total: $${costoTotalMuestra.toFixed(2)} MXN</div>
+                  `;
               }
 
-              html += \`
+              html += `
                 <div class="card-servicio">
                   <div style="flex: 1;">
-                    <strong style="font-size: 16px;">\${s.nombre}</strong><br>
-                    <small style="color: #64748b;">Entrega estimada: \${s.dias} días hábiles</small><br>
-                    <span class="peso-facturado">Peso a cobrar: \${s.kg} kg</span>
-                    \${htmlCargosExtras}
+                    <strong style="font-size: 16px;">${s.nombre}</strong><br>
+                    <small style="color: #64748b;">Entrega estimada: ${s.dias} días hábiles</small><br>
+                    <span class="peso-facturado">Peso a cobrar: ${s.kg} kg</span>${htmlCargosExtras}
                   </div>
                   
                   <div class="desglose-precios">
-                    \${htmlDesglosePrecios}
-                    \${botonHTML}
+                    ${htmlDesglosePrecios}${botonHTML}
                   </div>
                 </div>
-              \`;
+              `;
             });
             resDiv.innerHTML = html;
           } catch (err) {
-            resDiv.innerHTML = \`<div class="error">\${err.message}</div>\`;
+            resDiv.innerHTML = `<div class="error">${err.message}</div>`;
           } finally {
             btn.disabled = false;
             btn.innerText = 'Cotizar Paqueterías (Entorno Real)';
@@ -780,7 +777,7 @@ app.get('/', (req, res) => {
           pesoFacturadoSeleccionado = pesoFacturado; 
 
           document.getElementById('tituloServicioSeleccionado').innerText =
-            \`2. Emisión de Guía - \${nombre} (Total a cobrar: $ \${parseFloat(totalMostrado).toFixed(2)} MXN)\`;
+            `2. Emisión de Guía - ${nombre} (Total a cobrar:$ ${parseFloat(totalMostrado).toFixed(2)} MXN)`;
           const seccion = document.getElementById('seccionEmision');
           seccion.style.display = 'block';
           seccion.scrollIntoView({ behavior: 'smooth' });
@@ -856,11 +853,11 @@ app.get('/', (req, res) => {
             
             const tipoId = document.getElementById('remIdTipo').value;
             const numId = document.getElementById('remIdNum').value;
-            document.getElementById('rRemIdentificacion').innerText = \`\${tipoId} - \${numId}\`;
+            document.getElementById('rRemIdentificacion').innerText = `${tipoId} -${numId}`;
             
             document.getElementById('rRemTel').innerText = document.getElementById('remTelefono').value;
             document.getElementById('rDestNombre').innerText = destNombre;
-            document.getElementById('rDestDir').innerText = \`\${document.getElementById('destCalle').value}, \${document.getElementById('coloniaDestino').value}\`;
+            document.getElementById('rDestDir').innerText = `${document.getElementById('destCalle').value},${document.getElementById('coloniaDestino').value}`;
             document.getElementById('rDestCP').innerText = destCP;
             document.getElementById('rDestTel').innerText = document.getElementById('destTelefono').value;
             
@@ -876,17 +873,16 @@ app.get('/', (req, res) => {
             
             document.getElementById('btnImprimirRecibo').style.display = 'block';
 
-            resFinal.innerHTML = \`
+            resFinal.innerHTML = `
               <div class="exito-box">
                 <h3 style="margin-top:0;">✅ ¡Guía Generada Exitosamente!</h3>
-                <p><strong>Paquetería:</strong> \${data.paqueteria}</p>
-                <p><strong>Número de Rastreo:</strong> \${data.trackingCode}</p>
-                \${data.urlGuia ? \`<p><a href="\${data.urlGuia}" target="_blank" style="display:inline-block; padding:10px 18px; background:#16a34a; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold;">Descargar Guía en PDF</a></p>\` : '<p>Guía generada correctamente.</p>'}
+                <p><strong>Paquetería:</strong> ${data.paqueteria}</p>
+                <p><strong>Número de Rastreo:</strong> ${data.trackingCode}</p>${data.urlGuia ? `<p><a href="${data.urlGuia}" target="_blank" style="display:inline-block; padding:10px 18px; background:#16a34a; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold;">Descargar Guía en PDF</a></p>` : '<p>Guía generada correctamente.</p>'}
                 <div id="statusRespaldo" style="font-size:13px; color:#1e40af; font-weight:bold; margin-top:8px;">
                   ⏳ Respaldando guía y recibo en Google Drive y registrando venta en Google Sheets...
                 </div>
               </div>
-            \`;
+            `;
 
             // GENERAR RECIBO EN PDF Y RESPALDAR TODO EN GOOGLE DRIVE Y SHEETS
             try {
@@ -905,7 +901,7 @@ app.get('/', (req, res) => {
 
                 const opt = {
                   margin: 10,
-                  filename: \`RECIBO_\${data.trackingCode}.pdf\`,
+                  filename: `RECIBO_${data.trackingCode}.pdf`,
                   image: { type: 'jpeg', quality: 0.98 },
                   html2canvas: { scale: 2, useCORS: true },
                   jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }
@@ -943,7 +939,7 @@ app.get('/', (req, res) => {
             }
 
           } catch (err) {
-            resFinal.innerHTML = \`<div class="error"><strong>Error al crear guía:</strong> \${err.message}</div>\`;
+            resFinal.innerHTML = `<div class="error"><strong>Error al crear guía:</strong> ${err.message}</div>`;
           } finally {
             btn.disabled = false;
             btn.innerText = 'Confirmar y Generar Guía Oficial';
@@ -1056,15 +1052,16 @@ app.post('/api/subir-recibo', async (req, res) => {
       }
     }
 
-    // Unir enlaces de Drive para la Columna J ("Enlace Drive")
-    let enlaceFinalDrive = '';
-    if (guiaDriveLink && reciboDriveLink) {
-      enlaceFinalDrive = `Guía: ${guiaDriveLink} \nRecibo: ${reciboDriveLink}`;
-    } else {
-      enlaceFinalDrive = guiaDriveLink || reciboDriveLink || 'No disponible';
-    }
+    // Fórmulas de hipervínculo clickeables (Columna J: Guía, Columna K: Recibo)
+    const formulaGuia = guiaDriveLink 
+      ? `=HYPERLINK("${guiaDriveLink}", "Ver Guía")` 
+      : 'No disponible';
 
-    // Insertar la venta en Google Sheets en la pestaña Sheet1
+    const formulaRecibo = reciboDriveLink 
+      ? `=HYPERLINK("${reciboDriveLink}", "Ver Recibo")` 
+      : 'No disponible';
+
+    // Insertar la venta en Google Sheets en la pestaña Sheet1 (Rango A:K)
     const ahora = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
     const fila = [
       ahora,                                                              // A: Fecha
@@ -1076,17 +1073,18 @@ app.post('/api/subir-recibo', async (req, res) => {
       cpDestino || '',                                                    // G: C.P. Destino
       peso || '',                                                         // H: Peso (kg)
       totalCobrado ? `$${parseFloat(totalCobrado).toFixed(2)} MXN` : '',  // I: Total Cobrado
-      enlaceFinalDrive                                                    // J: Enlace Drive
+      formulaGuia,                                                        // J: Enlace Drive (Guía)
+      formulaRecibo                                                       // K: Enlace Recibo
     ];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Sheet1!A:J',
+      range: 'Sheet1!A:K',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [fila] }
     });
 
-    console.log('✅ Registro insertado exitosamente en Google Sheets.');
+    console.log('✅ Registro insertado exitosamente en Google Sheets (A:K).');
     return res.json({ ok: true, guiaDriveLink, reciboDriveLink });
   } catch (error) {
     console.error('Error registrando venta o recibo:', error.message);
