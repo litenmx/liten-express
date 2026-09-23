@@ -1,10 +1,58 @@
 const express = require('express');
 const crypto = require('crypto');
+const path = require('path');
+const fs = require('fs');
+const { Readable } = require('stream');
+const { google } = require('googleapis');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // URL BASE: PRODUCCIÓN ACTIVA (ENTORNO REAL)
 const BASE_URL = 'https://guias-api.enviafacil.shop/api/v1';
+
+// ---------------------------------------------------------
+// CONFIGURACIÓN DE GOOGLE DRIVE Y GOOGLE SHEETS
+// ---------------------------------------------------------
+const SPREADSHEET_ID = '10jeKX_VnRxKvW1kVpZUggvb8LLwoMEUfM56DRXK1jhA';
+const DRIVE_FOLDER_ID = '1-outDQUG-CYuOPn6Cnn8nzisGlFfowa8';
+
+const KEY_PATH = fs.existsSync('/etc/secrets/google-key.json')
+  ? '/etc/secrets/google-key.json'
+  : path.join(__dirname, 'google-key.json');
+
+// Autenticación con permisos para Google Sheets y Google Drive
+const authGoogle = new google.auth.GoogleAuth({
+  keyFile: KEY_PATH,
+  scopes: [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive'
+  ]
+});
+
+const sheets = google.sheets({ version: 'v4', auth: authGoogle });
+const drive = google.drive({ version: 'v3', auth: authGoogle });
+
+// Función para subir archivos en memoria (Buffer) a Google Drive
+async function subirBufferADrive(nombreArchivo, buffer, mimeType = 'application/pdf') {
+  try {
+    const response = await drive.files.create({
+      requestBody: {
+        name: nombreArchivo,
+        parents: [DRIVE_FOLDER_ID]
+      },
+      media: {
+        mimeType: mimeType,
+        body: Readable.from(buffer)
+      },
+      fields: 'id, name, webViewLink'
+    });
+    return response.data;
+  } catch (err) {
+    console.error(`Error subiendo ${nombreArchivo} a Drive:`, err.message);
+    return null;
+  }
+}
 
 // ---------------------------------------------------------
 // DATOS LEGALES Y SUCURSAL LITEN EXPRESS
@@ -33,7 +81,7 @@ const BASE_DATOS_USUARIOS = {
   "caja1": { pass: "@Liten123*", rol: 'cajero', tarifa: 'local' },
   "caja2": { pass: "@Liten123*", rol: 'cajero', tarifa: 'local' },
   "joseluis": { pass: "Pablito1122", rol: 'cajero', tarifa: 'local' },
-  "ocurresucursal": { pass: "Liten123*", rol: 'cajero', tarifa: 'local' }, // NUEVO USUARIO SUCURSAL
+  "ocurresucursal": { pass: "Liten123*", rol: 'cajero', tarifa: 'local' },
 
   // SOLO LECTURA LOCAL (Solo cotizan + Tarifa Local 125%/65%)
   "cotizador": { pass: "cotiza", rol: 'solo_lectura', tarifa: 'local' },
@@ -45,116 +93,103 @@ const BASE_DATOS_USUARIOS = {
   "moball": { pass: "llegodios123", rol: 'solo_lectura', tarifa: 'comercial' },
   "cotizaya": { pass: "Cotiza2026", rol: 'solo_lectura', tarifa: 'comercial' },
 
-  // -------- NUEVOS USUARIOS VIP ($100 FIJOS, SOLO DHL/FEDEX/ESTAFETA) --------
+  // USUARIOS VIP ($100 FIJOS, SOLO DHL/FEDEX/ESTAFETA)
   "guiasvip": { pass: "@Alan2015*", rol: 'cajero', tarifa: 'vip' },
   "vipcotizador": { pass: "preferencial", rol: 'solo_lectura', tarifa: 'vip' }
 };
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Se amplía el límite para recibir el PDF del recibo en Base64
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.static(__dirname));
 
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// ==========================================
-// FUNCIÓN PARA LEER COOKIES (SIN LIBRERÍAS EXTRA)
-// ==========================================
 function parseCookies(request) {
-    const list = {};
-    const cookieHeader = request.headers?.cookie;
-    if (!cookieHeader) return list;
-    cookieHeader.split(';').forEach(cookie => {
-        let [name, ...rest] = cookie.split('=');
-        name = name?.trim();
-        if (!name) return;
-        const value = rest.join('=').trim();
-        if (!value) return;
-        list[name] = decodeURIComponent(value);
-    });
-    return list;
+  const list = {};
+  const cookieHeader = request.headers?.cookie;
+  if (!cookieHeader) return list;
+  cookieHeader.split(';').forEach(cookie => {
+    let [name, ...rest] = cookie.split('=');
+    name = name?.trim();
+    if (!name) return;
+    const value = rest.join('=').trim();
+    if (!value) return;
+    list[name] = decodeURIComponent(value);
+  });
+  return list;
 }
 
 // ==========================================
 // SISTEMA DE SESIÓN WEB (LOGIN FORMULARIO)
 // ==========================================
-
-// 1. Mostrar Pantalla de Login
 app.get('/login', (req, res) => {
-    res.send(`
-        <!DOCTYPE html>
-        <html lang="es">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Acceso - Liten Express</title>
-            <style>
-                body { background: #f1f5f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: -apple-system, sans-serif; color: #1e293b; }
-                .login-card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); width: 100%; max-width: 360px; text-align: center; }
-                .login-card h2 { color: #1e40af; margin-bottom: 5px; font-size: 20px; }
-                .login-card p { color: #64748b; font-size: 13px; margin-bottom: 25px; }
-                input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
-                input:focus { outline: none; border-color: #2563eb; }
-                button { width: 100%; background: #2563eb; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; }
-                button:hover { background: #1d4ed8; }
-            </style>
-        </head>
-        <body>
-            <div class="login-card">
-                <img src="/logo.png" style="max-height: 90px; margin-bottom: 10px;" alt="Liten Express" onerror="this.style.display='none'">
-                <h2>COMERCIO ELECTRÓNICO LITEN</h2>
-                <p>Acceso al Portal de Operaciones</p>
-                <form action="/login" method="POST">
-                    <input type="text" name="usuario" placeholder="Usuario" required autocomplete="off">
-                    <input type="password" name="password" placeholder="Contraseña" required>
-                    <button type="submit">Ingresar al Portal</button>
-                </form>
-            </div>
-        </body>
-        </html>
-    `);
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Acceso - Liten Express</title>
+      <style>
+        body { background: #f1f5f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: -apple-system, sans-serif; color: #1e293b; }
+        .login-card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); width: 100%; max-width: 360px; text-align: center; }
+        .login-card h2 { color: #1e40af; margin-bottom: 5px; font-size: 20px; }
+        .login-card p { color: #64748b; font-size: 13px; margin-bottom: 25px; }
+        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        input:focus { outline: none; border-color: #2563eb; }
+        button { width: 100%; background: #2563eb; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; }
+        button:hover { background: #1d4ed8; }
+      </style>
+    </head>
+    <body>
+      <div class="login-card">
+        <img src="/logo.png" style="max-height: 90px; margin-bottom: 10px;" alt="Liten Express" onerror="this.style.display='none'">
+        <h2>COMERCIO ELECTRÓNICO LITEN</h2>
+        <p>Acceso al Portal de Operaciones</p>
+        <form action="/login" method="POST">
+          <input type="text" name="usuario" placeholder="Usuario" required autocomplete="off">
+          <input type="password" name="password" placeholder="Contraseña" required>
+          <button type="submit">Ingresar al Portal</button>
+        </form>
+      </div>
+    </body>
+    </html>
+  `);
 });
 
-// 2. Procesar Login
 app.post('/login', (req, res) => {
-    const { usuario, password } = req.body;
-    const usuarioDb = BASE_DATOS_USUARIOS[usuario];
+  const { usuario, password } = req.body;
+  const usuarioDb = BASE_DATOS_USUARIOS[usuario];
 
-    if (usuarioDb && usuarioDb.pass === password) {
-        // Genera un token simple y lo guarda en cookie por 12 horas
-        const token = Buffer.from(usuario + ':' + password).toString('base64');
-        res.setHeader('Set-Cookie', 'liten_auth=' + token + '; HttpOnly; Path=/; Max-Age=43200');
-        return res.redirect('/');
-    }
-    // Si falla, regresa con alerta
-    res.send('<script>alert("Credenciales incorrectas. Intente de nuevo."); window.location.href="/login";</script>');
+  if (usuarioDb && usuarioDb.pass === password) {
+    const token = Buffer.from(usuario + ':' + password).toString('base64');
+    res.setHeader('Set-Cookie', 'liten_auth=' + token + '; HttpOnly; Path=/; Max-Age=43200');
+    return res.redirect('/');
+  }
+  res.send('<script>alert("Credenciales incorrectas. Intente de nuevo."); window.location.href="/login";</script>');
 });
 
-// 3. Cerrar Sesión
 app.get('/logout', (req, res) => {
-    // Destruye la cookie
-    res.setHeader('Set-Cookie', 'liten_auth=; HttpOnly; Path=/; Max-Age=0');
-    res.redirect('/login');
+  res.setHeader('Set-Cookie', 'liten_auth=; HttpOnly; Path=/; Max-Age=0');
+  res.redirect('/login');
 });
 
-// ==========================================
-// CANDADO GENERAL PARA RUTAS PROTEGIDAS
-// ==========================================
 app.use((req, res, next) => {
   const cookies = parseCookies(req);
   const token = cookies['liten_auth'];
 
   if (token) {
-      const [usuario, password] = Buffer.from(token, 'base64').toString().split(':');
-      const usuarioDb = BASE_DATOS_USUARIOS[usuario];
-      
-      if (usuarioDb && usuarioDb.pass === password) {
-          req.usuarioLiten = usuario; 
-          req.rolLiten = usuarioDb.rol;
-          req.tarifaLiten = usuarioDb.tarifa;
-          return next();
-      }
+    const [usuario, password] = Buffer.from(token, 'base64').toString().split(':');
+    const usuarioDb = BASE_DATOS_USUARIOS[usuario];
+    
+    if (usuarioDb && usuarioDb.pass === password) {
+      req.usuarioLiten = usuario; 
+      req.rolLiten = usuarioDb.rol;
+      req.tarifaLiten = usuarioDb.tarifa;
+      return next();
+    }
   }
-  // Si no hay sesión, manda a login
   return res.redirect('/login');
 });
 
@@ -166,7 +201,6 @@ app.get('/', (req, res) => {
   const rolActual = req.rolLiten;
   const tarifaActual = req.tarifaLiten;
 
-  // Lógica para pre-cargar datos si el usuario es "ocurresucursal"
   const isOcurre = (usuarioActual === 'ocurresucursal');
   const defCpOrigen = isOcurre ? '91700' : '91698';
   const defColOrigen = isOcurre ? 'CENTRO' : 'hacienda sotavento';
@@ -182,6 +216,8 @@ app.get('/', (req, res) => {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Liten Express - Portal de Envíos</title>
+      <!-- Librería html2pdf para generar el PDF del recibo oficial -->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
       <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: #f1f5f9; margin: 0; padding: 20px 14px 70px 14px; color: #1e293b; }
@@ -226,81 +262,69 @@ app.get('/', (req, res) => {
         .alerta-cargos ul { margin: 4px 0 0 0; padding-left: 20px; }
         .nota-operativa { font-weight: bold; font-style: italic; }
 
-        /* Alerta VIP Fija */
         #alertaVipCajero { display: none; background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-bottom: 14px; text-align: center; }
 
-        /* ========================================================= */
-        /* BARRA FIJA INFERIOR DE SOPORTE Y CONCESIONES (3 COLUMNAS) */
-        /* ========================================================= */
+        /* BARRA INFERIOR DE SOPORTE Y CONCESIONES */
         .footer-soporte {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: #1e293b; 
-            color: #f1f5f9;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
-            font-size: 11px;
-            z-index: 1000;
-            box-shadow: 0 -3px 12px rgba(0,0,0,0.2);
-            border-top: 2px solid #2563eb;
-            gap: 15px;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          width: 100%;
+          background: #1e293b; 
+          color: #f1f5f9;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 15px;
+          font-size: 11px;
+          z-index: 1000;
+          box-shadow: 0 -3px 12px rgba(0,0,0,0.2);
+          border-top: 2px solid #2563eb;
+          gap: 15px;
         }
         .footer-soporte strong { color: #60a5fa; font-weight: 700; }
         .footer-concesiones { color: #94a3b8; font-size: 10px; text-align: right; }
         .footer-centro { flex: 1; text-align: center; color: #cbd5e1; font-weight: bold; font-size: 11px; letter-spacing: 0.5px; }
 
-        /* Animación del Punto Verde */
         .status-dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            background-color: #22c55e;
-            border-radius: 50%;
-            margin-right: 6px;
-            box-shadow: 0 0 8px #22c55e;
-            animation: pulse 2s infinite;
+          display: inline-block;
+          width: 10px;
+          height: 10px;
+          background-color: #22c55e;
+          border-radius: 50%;
+          margin-right: 6px;
+          box-shadow: 0 0 8px #22c55e;
+          animation: pulse 2s infinite;
         }
         @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+          0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+          70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+          100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
         }
 
-        /* ========================================================= */
-        /* MEDIA QUERY: AJUSTE RESPONSIVO PARA MÓVILES               */
-        /* ========================================================= */
         @media (max-width: 768px) {
-            body { padding-bottom: 110px; } /* Más espacio en móvil para que no tape los botones */
-            .footer-soporte {
-                flex-direction: column; /* Apila las 3 secciones una debajo de otra */
-                gap: 6px;
-                padding: 10px;
-            }
-            .footer-soporte > div {
-                white-space: normal !important;
-                text-align: center !important;
-                width: 100%;
-            }
-            .footer-centro { font-size: 10px; letter-spacing: 0; }
-            .footer-concesiones { font-size: 9px; line-height: 1.3; margin-top: 2px; }
+          body { padding-bottom: 110px; }
+          .footer-soporte {
+            flex-direction: column;
+            gap: 6px;
+            padding: 10px;
+          }
+          .footer-soporte > div {
+            white-space: normal !important;
+            text-align: center !important;
+            width: 100%;
+          }
+          .footer-centro { font-size: 10px; letter-spacing: 0; }
+          .footer-concesiones { font-size: 9px; line-height: 1.3; margin-top: 2px; }
         }
         
-        /* Estilos del Recibo (Ocultos en pantalla normal) */
         #reciboLiten { display: none; }
 
-        /* ========================================================= */
-        /* FORMATO DE IMPRESIÓN (TAMAÑO CARTA / A4 - CARETA)         */
-        /* ========================================================= */
+        /* FORMATO DE IMPRESIÓN (TAMAÑO CARTA - CARETA OFICIAL) */
         @media print {
           body * { visibility: hidden; } 
           body { background: white; margin: 0; padding: 0; }
           #reciboLiten, #reciboLiten * { visibility: visible; } 
-          
-          /* OCULTAMOS LA BARRA DE SOPORTE AL IMPRIMIR PARA NO MANCHAR EL RECIBO */
           .footer-soporte { display: none !important; }
           
           #reciboLiten { 
@@ -316,31 +340,25 @@ app.get('/', (req, res) => {
           }
           @page { margin: 1cm; size: letter; }
           
-          /* Encabezado / Membrete */
           .recibo-header { display: flex; justify-content: space-between; border-bottom: 3px solid #1e40af; padding-bottom: 15px; margin-bottom: 25px; }
           .recibo-logo { max-height: 80px; max-width: 250px; }
           .recibo-empresa { text-align: right; font-size: 11px; color: #333; }
           .recibo-empresa strong { font-size: 14px; display: block; color: #000; }
           
-          /* Título Central */
           .recibo-titulo { text-align: center; font-size: 20px; font-weight: bold; margin: 20px 0; letter-spacing: 1px; text-transform: uppercase; }
           .recibo-meta { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 20px; font-weight: bold; }
           
-          /* 2 Columnas: Remitente / Destino */
           .recibo-columnas { display: flex; justify-content: space-between; gap: 30px; margin-bottom: 30px; }
           .recibo-col { flex: 1; border: 1px solid #ccc; padding: 15px; border-radius: 8px; }
           .recibo-col h4 { margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; color: #1e40af; text-transform: uppercase; font-size: 13px; }
           .recibo-dato-linea { font-size: 12px; margin-bottom: 5px; }
           
-          /* Tabla Operativa */
           .recibo-tabla { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
           .recibo-tabla th, .recibo-tabla td { border: 1px solid #aaa; padding: 12px; text-align: left; font-size: 13px; }
           .recibo-tabla th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; color: #000; }
           
-          /* Total */
           .recibo-total { text-align: right; font-size: 22px; margin-top: 15px; border-top: 2px solid #000; padding-top: 10px; }
           
-          /* Legales y Firma */
           .recibo-footer { margin-top: 40px; font-size: 10px; color: #444; text-align: justify; }
           .recibo-firma-box { text-align: center; margin-top: 80px; page-break-inside: avoid; }
           .recibo-firma-linea { border-top: 1px solid #000; width: 300px; margin: 0 auto 10px auto; }
@@ -489,7 +507,6 @@ app.get('/', (req, res) => {
               </div>
             </div>
 
-            <!-- ALERTA EXCLUSIVA VIP PARA PREVENIR ERRORES DE MEDICIÓN -->
             <div id="alertaVipCajero">
                🚨 ATENCIÓN CAJERO: Asegúrese de haber MEDIDO con cinta y PESADO en báscula el paquete físicamente delante del cliente ANTES de generar esta guía.
             </div>
@@ -504,12 +521,8 @@ app.get('/', (req, res) => {
         </div>
       </div>
 
-      <!-- ======================================================== -->
-      <!-- NUEVO RECIBO TAMAÑO CARTA OCULTO (CARETA OFICIAL)        -->
-      <!-- ======================================================== -->
+      <!-- RECIBO TAMAÑO CARTA MEMBRETADO -->
       <div id="reciboLiten">
-          
-          <!-- Membrete -->
           <div class="recibo-header">
               <div>
                   <img src="/logo.png" class="recibo-logo" alt="Logo Liten Express" onerror="this.style.display='none'">
@@ -530,7 +543,6 @@ app.get('/', (req, res) => {
               <div>Fecha de Emisión: <span id="rFecha" style="font-weight:normal;"></span></div>
           </div>
 
-          <!-- Datos de Clientes a 2 Columnas -->
           <div class="recibo-columnas">
               <div class="recibo-col">
                   <h4>Datos del Remitente</h4>
@@ -547,7 +559,6 @@ app.get('/', (req, res) => {
               </div>
           </div>
 
-          <!-- Tabla de Servicio -->
           <table class="recibo-tabla">
               <thead>
                   <tr>
@@ -571,7 +582,6 @@ app.get('/', (req, res) => {
               <strong>TOTAL COBRADO: $<span id="rTotal"></span> MXN</strong>
           </div>
           
-          <!-- Legales y Firma -->
           <div class="recibo-footer">
               <p><strong>ATENCIÓN AL CLIENTE Y RASTREO DE PAQUETES:</strong><br>
               Todo seguimiento, reclamo o duda respecto al estatus y tiempo de entrega de su paquete es <strong>exclusivamente</strong> a través de la empresa de paquetería asignada. Liten Express proporciona los siguientes medios de contacto directos de su paquetería:<br>
@@ -589,7 +599,7 @@ app.get('/', (req, res) => {
           </div>
       </div>
       
-      <!-- BARRA FLOTANTE CON INDICADOR, DATOS FISCALES Y CONCESIONES (3 COLUMNAS) -->
+      <!-- BARRA FLOTANTE -->
       <div class="footer-soporte">
         <div style="white-space: nowrap;">
           <span class="status-dot"></span><span style="color: #4ade80; font-weight: bold; margin-right: 12px;">Conectado</span>
@@ -607,7 +617,6 @@ app.get('/', (req, res) => {
         const ROL_USUARIO_ACTUAL = '${rolActual}'; 
         const TARIFA_USUARIO_ACTUAL = '${tarifaActual}'; 
 
-        // Mostrar alerta visual si es cajero VIP
         if (TARIFA_USUARIO_ACTUAL === 'vip' && ROL_USUARIO_ACTUAL === 'cajero') {
             document.getElementById('alertaVipCajero').style.display = 'block';
         }
@@ -620,14 +629,11 @@ app.get('/', (req, res) => {
 
         function obtenerContactoPaqueteria(nombrePaq) {
             const paq = nombrePaq.toUpperCase();
-            
             if (paq.includes('DHL')) return { tel: '55 5345 7000', web: 'https://www.dhl.com/mx-es/home.html' };
             if (paq.includes('ESTAFETA')) return { tel: '55 5270 8300 o al 800 378 2338', web: 'https://www.estafeta.com/' };
             if (paq.includes('FEDEX')) return { tel: '55 5228 9904', web: 'https://www.fedex.com/es-mx/home.html' };
             if (paq.includes('PAQUETEXPRESS')) return { tel: '800 821 0208 (WhatsApp: 6681 680000)', web: 'https://www.paquetexpress.com.mx/' };
             if (paq.includes('TRES GUERRAS') || paq.includes('TRESGUERRAS')) return { tel: '800 710 8352', web: 'https://www.tresguerras.com.mx/' };
-            
-            // Condición para paqueterías no listadas (Línea en blanco para llenar a mano)
             return { tel: '.:___________', web: '.:___________' };
         }
 
@@ -687,20 +693,13 @@ app.get('/', (req, res) => {
 
             let html = '<h3 style="margin-bottom: 12px;">Selecciona la paquetería para crear la guía:</h3>';
             data.servicios.forEach(s => {
-              
-              // ==============================================================
-              // FILTRO VIP (SOLO DHL, FEDEX, ESTAFETA)
-              // ==============================================================
               if (TARIFA_USUARIO_ACTUAL === 'vip') {
                  const nombreUpper = s.nombre.toUpperCase();
                  if (!nombreUpper.includes('DHL') && !nombreUpper.includes('FEDEX') && !nombreUpper.includes('ESTAFETA')) {
-                     return; // Si no es ninguna de estas 3, saltar y no mostrarla
+                     return;
                  }
               }
 
-              // ==============================================================
-              // LÓGICA DE PRECIOS MATRICIAL (LOCAL VS COMERCIAL VS VIP)
-              // ==============================================================
               const costoTraslado = parseFloat(s.total); 
               let costoServicio = 0;
 
@@ -709,7 +708,7 @@ app.get('/', (req, res) => {
                   if (/DHL/i.test(s.nombre)) multiplicadorServicio = 0.90;
                   costoServicio = costoTraslado * multiplicadorServicio;
               } else if (TARIFA_USUARIO_ACTUAL === 'vip') {
-                  costoServicio = 100.00; // TARIFA FIJA DE $100
+                  costoServicio = 100.00;
               } else {
                   let multiplicadorServicio = 1.25; 
                   if (/DHL/i.test(s.nombre)) multiplicadorServicio = 0.65;
@@ -717,12 +716,9 @@ app.get('/', (req, res) => {
               }
 
               const costoTotalMuestra = costoTraslado + costoServicio;     
-              
               const notaAdvertencia = obtenerNotaOperativa(s.nombre);
 
-              // Detector visual de recargos ocultos
               let htmlCargosExtras = \`<div class="alerta-cargos"><span class="nota-operativa">⚠️ \${notaAdvertencia}</span>\`;
-              
               if (s.cargosAplicados && s.cargosAplicados.length > 0) {
                   htmlCargosExtras += \`<ul>\`;
                   s.cargosAplicados.forEach(cargo => {
@@ -732,7 +728,6 @@ app.get('/', (req, res) => {
               }
               htmlCargosExtras += \`</div>\`;
 
-              // Ocultar botón si es "solo_lectura"
               let botonHTML = '';
               if (ROL_USUARIO_ACTUAL === 'cajero') {
                   botonHTML = \`<button type="button" class="btn-success" style="width: 100%; padding: 10px;" onclick="seleccionarServicio(\${s.idservicio}, '\${s.nombre}', \${costoTotalMuestra}, \${s.kg})">Seleccionar</button>\`;
@@ -740,17 +735,12 @@ app.get('/', (req, res) => {
                   botonHTML = \`<div style="color: #991b1b; font-size: 11px; text-align: center; margin-top: 5px; font-weight: bold;">[Botón de Emisión Desactivado]</div>\`;
               }
 
-              // ==============================================================
-              // MOSTRAR U OCULTAR EL DESGLOSE DE PRECIOS PARA VIP COTIZADOR
-              // ==============================================================
               let htmlDesglosePrecios = '';
               if (TARIFA_USUARIO_ACTUAL === 'vip' && ROL_USUARIO_ACTUAL === 'solo_lectura') {
-                  // VIP Cotizador: Ocultar desglose, solo mostrar Total final grande
                   htmlDesglosePrecios = \`
                     <div class="precio" style="margin-top: 4px; margin-bottom: 10px; font-size: 20px;">Total: $\${costoTotalMuestra.toFixed(2)} MXN</div>
                   \`;
               } else {
-                  // Los demás (guiasvip, cajeros y comerciales locales): Mostrar desglose
                   htmlDesglosePrecios = \`
                     <div class="rubro-precio">Combustible/Base: <strong>$\${costoTraslado.toFixed(2)}</strong></div>
                     <div class="rubro-precio">Servicio: <strong>$\${costoServicio.toFixed(2)}</strong></div>
@@ -799,7 +789,6 @@ app.get('/', (req, res) => {
         document.getElementById('emisionForm').addEventListener('submit', async (e) => {
           e.preventDefault();
 
-          // Modificación en el mensaje de alerta para cajeros VIP
           let alertaGeneracion = "⚠️ ATENCIÓN: ANTES DE GENERAR LA GUÍA\\n\\n1. Verifica que el C.P. y la dirección sean correctos.\\n2. Confirma que YA HAS COBRADO el importe total.\\n\\n¿Estás seguro de emitir la guía oficial? (Se descontará saldo)";
 
           if (TARIFA_USUARIO_ACTUAL === 'vip') {
@@ -816,6 +805,8 @@ app.get('/', (req, res) => {
           document.getElementById('btnImprimirRecibo').style.display = 'none';
 
           const nombreRemitente = document.getElementById('remNombre').value.trim();
+          const destNombre = document.getElementById('destNombre').value.trim();
+          const destCP = document.getElementById('cpDestino').value.trim();
 
           const payloadGuia = {
             idcotizacion: cotizacionActual.idcotizacion,
@@ -832,13 +823,13 @@ app.get('/', (req, res) => {
               telefono: document.getElementById('remTelefono').value.trim()
             },
             destinatario: {
-              nombre: document.getElementById('destNombre').value.trim(),
+              nombre: destNombre,
               empresa: document.getElementById('destEmpresa').value.trim() || 'Particular',
               calle: document.getElementById('destCalle').value.trim(),
               colonia: document.getElementById('coloniaDestino').value.trim(),
               ciudad: document.getElementById('destCiudad').value.trim(),
               estado: document.getElementById('destEstado').value.trim(),
-              codigoPostal: document.getElementById('cpDestino').value.trim(),
+              codigoPostal: destCP,
               telefono: document.getElementById('destTelefono').value.trim()
             }
           };
@@ -856,16 +847,7 @@ app.get('/', (req, res) => {
               throw new Error(msg);
             }
 
-            resFinal.innerHTML = \`
-              <div class="exito-box">
-                <h3 style="margin-top:0;">✅ ¡Guía Generada Exitosamente!</h3>
-                <p><strong>Paquetería:</strong> \${data.paqueteria}</p>
-                <p><strong>Número de Rastreo:</strong> \${data.trackingCode}</p>
-                \${data.urlGuia ? \`<p><a href="\${data.urlGuia}" target="_blank" style="display:inline-block; padding:10px 18px; background:#16a34a; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold;">Descargar Guía en PDF</a></p>\` : '<p>Guía generada correctamente. URL en espera.</p>'}
-              </div>
-            \`;
-
-            // === LLENAR DATOS DEL RECIBO FORMAL CARTA ===
+            // LLENAR DATOS EN EL RECIBO FORMAL
             const paqueteriaFinal = data.paqueteria || nombrePaqueteriaSeleccionada;
             const datosContacto = obtenerContactoPaqueteria(paqueteriaFinal);
 
@@ -877,9 +859,9 @@ app.get('/', (req, res) => {
             document.getElementById('rRemIdentificacion').innerText = \`\${tipoId} - \${numId}\`;
             
             document.getElementById('rRemTel').innerText = document.getElementById('remTelefono').value;
-            document.getElementById('rDestNombre').innerText = document.getElementById('destNombre').value;
+            document.getElementById('rDestNombre').innerText = destNombre;
             document.getElementById('rDestDir').innerText = \`\${document.getElementById('destCalle').value}, \${document.getElementById('coloniaDestino').value}\`;
-            document.getElementById('rDestCP').innerText = document.getElementById('cpDestino').value;
+            document.getElementById('rDestCP').innerText = destCP;
             document.getElementById('rDestTel').innerText = document.getElementById('destTelefono').value;
             
             document.getElementById('rPaqueteria').innerText = paqueteriaFinal;
@@ -893,6 +875,72 @@ app.get('/', (req, res) => {
             document.getElementById('rFirmaNombre').innerText = nombreRemitente;
             
             document.getElementById('btnImprimirRecibo').style.display = 'block';
+
+            resFinal.innerHTML = \`
+              <div class="exito-box">
+                <h3 style="margin-top:0;">✅ ¡Guía Generada Exitosamente!</h3>
+                <p><strong>Paquetería:</strong> \${data.paqueteria}</p>
+                <p><strong>Número de Rastreo:</strong> \${data.trackingCode}</p>
+                \${data.urlGuia ? \`<p><a href="\${data.urlGuia}" target="_blank" style="display:inline-block; padding:10px 18px; background:#16a34a; color:#fff; text-decoration:none; border-radius:6px; font-weight:bold;">Descargar Guía en PDF</a></p>\` : '<p>Guía generada correctamente.</p>'}
+                <div id="statusRespaldo" style="font-size:13px; color:#1e40af; font-weight:bold; margin-top:8px;">
+                  ⏳ Respaldando guía y recibo en Google Drive y registrando venta en Google Sheets...
+                </div>
+              </div>
+            \`;
+
+            // GENERAR RECIBO EN PDF Y RESPALDAR TODO EN GOOGLE DRIVE Y SHEETS
+            try {
+              let reciboBase64 = '';
+              const reciboElemento = document.getElementById('reciboLiten');
+              
+              if (typeof html2pdf !== 'undefined' && reciboElemento) {
+                const clonRecibo = reciboElemento.cloneNode(true);
+                clonRecibo.style.display = 'block';
+                clonRecibo.style.position = 'fixed';
+                clonRecibo.style.left = '-9999px';
+                clonRecibo.style.top = '0';
+                clonRecibo.style.width = '750px';
+                clonRecibo.style.backgroundColor = '#ffffff';
+                document.body.appendChild(clonRecibo);
+
+                const opt = {
+                  margin: 10,
+                  filename: \`RECIBO_\${data.trackingCode}.pdf\`,
+                  image: { type: 'jpeg', quality: 0.98 },
+                  html2canvas: { scale: 2, useCORS: true },
+                  jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }
+                };
+
+                reciboBase64 = await html2pdf().set(opt).from(clonRecibo).outputPdf('datauristring');
+                document.body.removeChild(clonRecibo);
+              }
+
+              const respRespaldo = await fetch('/api/subir-recibo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  trackingCode: data.trackingCode,
+                  paqueteria: paqueteriaFinal,
+                  remitente: nombreRemitente,
+                  destinatario: destNombre,
+                  cpDestino: destCP,
+                  peso: pesoFacturadoSeleccionado,
+                  totalCobrado: totalCobradoSeleccionado,
+                  guiaDriveLink: data.guiaDriveLink || '',
+                  reciboBase64: reciboBase64
+                })
+              });
+
+              if (respRespaldo.ok) {
+                const statusDiv = document.getElementById('statusRespaldo');
+                if (statusDiv) {
+                  statusDiv.innerHTML = '📁 <strong>¡Archivos respaldados en Google Drive y registrados en Google Sheets con éxito!</strong>';
+                  statusDiv.style.color = '#15803d';
+                }
+              }
+            } catch (errRespaldo) {
+              console.error('Detalle en generación o envío de respaldo:', errRespaldo);
+            }
 
           } catch (err) {
             resFinal.innerHTML = \`<div class="error"><strong>Error al crear guía:</strong> \${err.message}</div>\`;
@@ -925,7 +973,7 @@ app.post('/api/cotizar', async (req, res) => {
   }
 });
 
-// Endpoint seguro Generar Guía
+// Endpoint seguro Generar Guía + Descarga y Respaldo automático de la Guía a Drive
 app.post('/api/guias', async (req, res) => {
   if (req.rolLiten !== 'cajero') {
     return res.status(403).json({ error: 'Operación denegada. Este usuario solo tiene permisos para cotizar, no para gastar saldo.' });
@@ -945,10 +993,105 @@ app.post('/api/guias', async (req, res) => {
       body: JSON.stringify(req.body)
     });
     const data = await apiRes.json();
-    return res.status(apiRes.status).json(data);
+
+    if (!apiRes.ok) {
+      return res.status(apiRes.status).json(data);
+    }
+
+    // Si la guía se emitió y devolvió URL de PDF, se descarga y respalda en Drive
+    let guiaDriveLink = '';
+    if (data.urlGuia) {
+      try {
+        const respPdf = await fetch(data.urlGuia);
+        const arrayBuf = await respPdf.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+        const subida = await subirBufferADrive(`GUIA_${data.trackingCode}_${data.paqueteria || 'ENVIO'}.pdf`, buffer);
+        if (subida) {
+          guiaDriveLink = subida.webViewLink || `https://drive.google.com/file/d/${subida.id}/view`;
+          console.log('✅ Guía oficial guardada en Drive:', subida.name);
+        }
+      } catch (errDrive) {
+        console.error('Error respaldando guía en Drive:', errDrive.message);
+      }
+    }
+
+    return res.status(200).json({
+      ...data,
+      guiaDriveLink: guiaDriveLink
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
 });
 
-app.listen(PORT, () => console.log('Liten Express operativo con Sesiones Web y Recibo Formal.'));
+// Endpoint para recibir el Recibo membretado, subirlo a Drive y guardar la fila en Google Sheets
+app.post('/api/subir-recibo', async (req, res) => {
+  try {
+    const {
+      trackingCode,
+      paqueteria,
+      remitente,
+      destinatario,
+      cpDestino,
+      peso,
+      totalCobrado,
+      guiaDriveLink,
+      reciboBase64
+    } = req.body;
+
+    let reciboDriveLink = '';
+
+    // Si viene el archivo del recibo en base64, se decodifica y sube a Drive
+    if (reciboBase64) {
+      try {
+        const base64Data = reciboBase64.replace(/^data:application\/pdf;filename=[^;]+;base64,/, '').replace(/^data:application\/pdf;base64,/, '');
+        const bufferRecibo = Buffer.from(base64Data, 'base64');
+        const subidaRecibo = await subirBufferADrive(`RECIBO_${trackingCode}_${remitente || 'CLIENTE'}.pdf`, bufferRecibo);
+        if (subidaRecibo) {
+          reciboDriveLink = subidaRecibo.webViewLink || `https://drive.google.com/file/d/${subidaRecibo.id}/view`;
+          console.log('✅ Recibo formal membretado guardado en Drive:', subidaRecibo.name);
+        }
+      } catch (errRecibo) {
+        console.error('Error subiendo recibo a Drive:', errRecibo.message);
+      }
+    }
+
+    // Unir enlaces de Drive para la Columna J ("Enlace Drive")
+    let enlaceFinalDrive = '';
+    if (guiaDriveLink && reciboDriveLink) {
+      enlaceFinalDrive = `Guía: ${guiaDriveLink} \nRecibo: ${reciboDriveLink}`;
+    } else {
+      enlaceFinalDrive = guiaDriveLink || reciboDriveLink || 'No disponible';
+    }
+
+    // Insertar la venta en Google Sheets en la pestaña Sheet1
+    const ahora = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
+    const fila = [
+      ahora,                                                              // A: Fecha
+      req.usuarioLiten || 'Cajero',                                       // B: Cajero
+      paqueteria || 'Desconocida',                                        // C: Paquetería
+      trackingCode || 'S/N',                                              // D: Rastreo
+      remitente || '',                                                    // E: Remitente
+      destinatario || '',                                                 // F: Destinatario
+      cpDestino || '',                                                    // G: C.P. Destino
+      peso || '',                                                         // H: Peso (kg)
+      totalCobrado ? `$${parseFloat(totalCobrado).toFixed(2)} MXN` : '',  // I: Total Cobrado
+      enlaceFinalDrive                                                    // J: Enlace Drive
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sheet1!A:J',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [fila] }
+    });
+
+    console.log('✅ Registro insertado exitosamente en Google Sheets.');
+    return res.json({ ok: true, guiaDriveLink, reciboDriveLink });
+  } catch (error) {
+    console.error('Error registrando venta o recibo:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.listen(PORT, () => console.log('Liten Express operativo con Google Drive, Sheets y Sesiones.'));
